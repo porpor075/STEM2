@@ -221,8 +221,8 @@
         <table id="dailyCompletionTable" class="display compact" style="width:100%; margin-top:20px;">
             <thead><tr><th>Date</th><th>Completed</th></tr></thead>
             <tbody>
-                {% for i in range(daily_completion_data.labels|length) %}
-                <tr><td>{{ daily_completion_data.labels[i] }}</td><td>{{ daily_completion_data.values[i] }}</td></tr>
+                {% for i in range(daily_completion_data['labels']|length) %}
+                <tr><td>{{ daily_completion_data['labels'][i] }}</td><td>{{ daily_completion_data['values'][i] }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -293,10 +293,10 @@
         new Chart(dCtx, {
             type: 'line',
             data: {
-                labels: {{ daily_completion_data.labels|tojson }},
+                labels: {{ daily_completion_data['labels']|tojson }},
                 datasets: [{
                     label: 'Completions',
-                    data: {{ daily_completion_data.values|tojson }},
+                    data: {{ daily_completion_data['values']|tojson }},
                     borderColor: '#34c759',
                     backgroundColor: 'rgba(52, 199, 89, 0.1)',
                     fill: true,
