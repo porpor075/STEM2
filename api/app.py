@@ -104,6 +104,19 @@ def process_data():
             return 'Not Start'
         
         pivot_df['Learning Status'] = pivot_df.apply(determine_status, axis=1)
+
+        # Add User_Status_Category for filtering in UI
+        def get_user_cat(row):
+            vals = pd.to_numeric(row[date_cols], errors='coerce').dropna()
+            if vals.empty: return '0'
+            m = vals.max()
+            if m >= 100: return '100'
+            if m > 50: return 'in-progress-high'
+            if m >= 1: return 'in-progress-early'
+            return '0'
+        
+        pivot_df['User_Status_Category'] = pivot_df.apply(get_user_cat, axis=1)
+
         pivot_df.to_csv(REPORT_CSV, index=False, encoding='utf-8-sig')
         return True
     except Exception as e: 
@@ -138,8 +151,9 @@ def summary():
         df = get_report_data()
         if df is None: return "Database Error"
         
-        meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status']
+        meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category']
         date_cols = [c for c in df.columns if c not in meta]
+        latest_date = date_cols[-1] if date_cols else None
         
         def find_completion_date(row):
             for d in date_cols:
@@ -177,11 +191,19 @@ def summary():
             NotStarted=('Learning Status', lambda x: (x.astype(str) == 'Not Start').sum())
         ).reset_index().to_dict(orient='records')
 
+        # Density Chart Data
+        density = df.groupby('Email').size().value_counts().sort_index()
+        chart_labels = [f"{i} Courses" for i in density.index]
+        chart_values = density.values.tolist()
+
         return render_template('summary.html', total_users=total_unique, joined_users_count=joined_count,
                                users_100_count=u100, users_51_99_count=u51, 
                                users_1_50_count=u1, users_0_count=u0, 
                                all_users_list=display_users, content_stats=c_stats,
-                               daily_completion_data=daily_data)
+                               daily_completion_data=daily_data,
+                               latest_date=latest_date,
+                               chart_labels=chart_labels,
+                               chart_values=chart_values)
     except Exception as e:
         traceback.print_exc()
         return f"Error: {e}", 500
