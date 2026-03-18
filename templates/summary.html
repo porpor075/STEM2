@@ -249,19 +249,20 @@
             <tbody>
                 {% for row in all_users_list %}
                 <tr>
-                    <td>{{ row.Email }}</td>
-                    <td>{{ row['First Name'] }} {{ row['Last Name'] }}</td>
-                    <td>{{ row['Content Name'] }}</td>
+                    <td>{{ row.get('Email', '-') }}</td>
+                    <td>{{ row.get('First Name', '') }} {{ row.get('Last Name', '') }}</td>
+                    <td>{{ row.get('Content Name', '-') }}</td>
                     <td>
                         <div class="live-progress-wrapper">
-                            <span style="min-width: 40px; font-weight:700; font-size: 12px;">{{ row[latest_date] }}%</span>
+                            {% set prog = row.get(latest_date, 0) if latest_date else 0 %}
+                            <span style="min-width: 40px; font-weight:700; font-size: 12px;">{{ prog }}%</span>
                             <div class="live-progress-container">
-                                <div class="progress-bar-fill" style="width: {{ row[latest_date] }}%; background: {% if row[latest_date]|float == 100 %}var(--success){% elif row[latest_date]|float > 0 %}var(--primary){% else %}#dadce0{% endif %};"></div>
+                                <div class="progress-bar-fill" style="width: {{ prog }}%; background: {% if prog|float >= 100 %}var(--success){% elif prog|float > 0 %}var(--primary){% else %}#dadce0{% endif %};"></div>
                             </div>
                         </div>
                     </td>
-                    <td style="display:none;">{{ row['User_Status_Category'] }}</td>
-                    <td style="display:none;">{{ row['date_joined'] }}</td>
+                    <td style="display:none;">{{ row.get('User_Status_Category', 'all') }}</td>
+                    <td style="display:none;">{{ row.get('date_joined', '-') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
