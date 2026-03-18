@@ -250,16 +250,26 @@ def calling_list():
         df = get_report_data()
         if df is None: return "Report not found."
         
-        # Load existing calling list from sheet
+        # Load existing calling list from sheet (via GAS JSON API)
+        df_calling = pd.DataFrame() # Initialize as empty
         try:
-            resp = requests.get(CALLING_LIST_URL, timeout=10)
-            if resp.status_code == 200:
-                with open(CALLING_LIST_CSV, 'wb') as f: f.write(resp.content)
-                df_calling = pd.read_csv(CALLING_LIST_CSV)
-                df_calling.columns = [c.strip() for c in df_calling.columns]
-                df_calling['Email'] = df_calling['Email'].astype(str).str.strip().str.lower()
-            else: df_calling = pd.DataFrame()
-        except: df_calling = pd.DataFrame()
+            if not GAS_URL or "placeholder" in GAS_URL.lower():
+                print("GAS_URL is not configured for fetching calling list.")
+            else:
+                resp = requests.get(f"{GAS_URL}?action=getCallingList", timeout=10)
+                if resp.status_code == 200:
+                    gas_data = resp.json()
+                    if gas_data and isinstance(gas_data, list):
+                        df_calling = pd.DataFrame(gas_data)
+                        df_calling.columns = [c.strip() for c in df_calling.columns]
+                        if 'Email' in df_calling.columns:
+                            df_calling['Email'] = df_calling['Email'].astype(str).str.strip().str.lower()
+                    else:
+                        print(f"GAS returned empty or invalid data: {gas_data}")
+                else:
+                    print(f"Failed to fetch calling list from GAS. Status: {resp.status_code}")
+        except Exception as e:
+            print(f"Error fetching calling list from GAS: {e}")
 
         # Process main data for density and progress
         meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category']
