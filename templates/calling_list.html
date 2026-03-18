@@ -119,6 +119,14 @@
             </select>
         </div>
         <div class="filter-group">
+            <label>Type</label>
+            <select id="filterType">
+                <option value="">All Types</option>
+                <option value="B2C">B2C</option>
+                <option value="B2B">B2B</option>
+            </select>
+        </div>
+        <div class="filter-group">
             <label>Progress Tier</label>
             <select id="filterProgressTier">
                 <option value="">All Tiers</option>
@@ -248,6 +256,10 @@
 
             $('#filterCallStatus').on('change', function() {
                 table.column(8).search(this.value).draw();
+            });
+
+            $('#filterType').on('change', function() {
+                table.column(4).search(this.value).draw();
             });
 
             $('#filterDensity').on('change', function() {
