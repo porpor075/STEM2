@@ -119,9 +119,13 @@ def refresh_logic():
     try:
         if os.path.exists(REPORT_CSV): os.remove(REPORT_CSV)
         r1 = requests.get(DATA_SHEET_URL, timeout=15)
-        if r1.status_code == 200: with open(REMOTE_CSV, 'wb') as f: f.write(r1.content)
+        if r1.status_code == 200:
+            with open(REMOTE_CSV, 'wb') as f:
+                f.write(r1.content)
         r2 = requests.get(USER_ACCESS_URL, timeout=15)
-        if r2.status_code == 200: with open(USER_ACCESS_CSV, 'wb') as f: f.write(r2.content)
+        if r2.status_code == 200:
+            with open(USER_ACCESS_CSV, 'wb') as f:
+                f.write(r2.content)
         load_auth_credentials()
         return process_data()
     except Exception as e: 
