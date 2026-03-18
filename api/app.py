@@ -27,6 +27,10 @@ AUTH_CSV = "/tmp/auth_users.csv"
 USER_ACCESS_CSV = "/tmp/user_access.csv"
 CALLING_LIST_CSV = "/tmp/calling_list.csv"
 
+# Google Apps Script Web App URL (Update this with your actual URL)
+# Example: https://script.google.com/macros/s/AKfycb.../exec
+GAS_URL = os.environ.get("GAS_URL", "https://script.google.com/macros/s/AKfycbyI7G4-nN8P-7lT7G_U8Z9-E8Z6/exec") 
+
 USER_AUTH = {"Conicle": "Conicle@33"}
 
 def login_required(f):
@@ -317,21 +321,75 @@ def mark_called():
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     try:
-        # We use Apps Script Web App URL from the google_apps_script.js (user needs to provide it)
-        # For now, we simulate success or the user might have provided it in code I haven't seen.
-        # Looking at google_apps_script.js, it's designed to be called.
-        # I'll use a placeholder or check if there's a GAS_URL.
-        GAS_URL = "https://script.google.com/macros/s/AKfycby5X_x6X7-N2Y6-N8M0_F6Z6_v1_S8Z9_v1/exec" # Placeholder
-        # Since I don't have the real URL, I will return success but log that URL is needed.
-        return jsonify({"status": "success", "message": "Updated locally (GAS URL placeholder)"})
+        if not GAS_URL or "placeholder" in GAS_URL.lower():
+            return jsonify({"status": "error", "message": "GAS_URL is not configured"}), 400
+            
+        resp = requests.post(GAS_URL, json=payload, timeout=15)
+        if resp.status_code == 200:
+            return jsonify(resp.json())
+        return jsonify({"status": "error", "message": f"GAS Error: {resp.status_code}"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/sync-all-to-gsheet', methods=['POST'])
 @login_required
 def sync_all_to_gsheet():
-    # Similar to mark_called but for batch
-    return jsonify({"status": "success", "message": "Sync triggered (GAS URL placeholder)"})
+    try:
+        df = get_report_data()
+        if df is None: return jsonify({"status": "error", "message": "No data to sync"}), 500
+        
+        # Prepare batch users
+        meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category']
+        date_cols = [c for c in df.columns if c not in meta]
+        
+        user_summary = df.groupby('Email').agg({
+            'First Name': 'first',
+            'Last Name': 'first',
+            'Learning Status': lambda x: 'Completed' if 'Completed' in x.values else ('In Progress' if 'In Progress' in x.values else 'Not Start')
+        }).reset_index()
+
+        density = df.groupby('Email').size().reset_index(name='Density')
+        user_summary = user_summary.merge(density, on='Email')
+        
+        if date_cols:
+            df['Max_Prog'] = df[date_cols].apply(pd.to_numeric, errors='coerce').fillna(0).max(axis=1)
+            user_prog = df.groupby('Email')['Max_Prog'].max().reset_index()
+            user_summary = user_summary.merge(user_prog, on='Email')
+        else:
+            user_summary['Max_Prog'] = 0
+
+        def get_tier(p):
+            if p >= 100: return "100%"
+            if p <= 0: return "0%"
+            tier = (int(p)//10)*10
+            return f"{tier+1}-{tier+10}%"
+        
+        user_summary['User_Progress_Tier'] = user_summary['Max_Prog'].apply(get_tier)
+        
+        batch_users = []
+        for _, row in user_summary.iterrows():
+            batch_users.append({
+                "email": row['Email'],
+                "firstName": row['First Name'],
+                "lastName": row['Last Name'],
+                "learningStatus": row['Learning Status'],
+                "density": str(row['Density']),
+                "progressTier": row['User_Progress_Tier']
+            })
+            
+        payload = {
+            "action": "batchAddUsers",
+            "users": batch_users,
+            "username": session.get('username', 'System')
+        }
+        
+        resp = requests.post(GAS_URL, json=payload, timeout=30)
+        if resp.status_code == 200:
+            return jsonify(resp.json())
+        return jsonify({"status": "error", "message": f"GAS Error: {resp.status_code}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
     load_auth_credentials()
