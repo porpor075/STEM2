@@ -29,7 +29,7 @@ CALLING_LIST_CSV = "/tmp/calling_list.csv"
 
 # Google Apps Script Web App URL (Update this with your actual URL)
 # Example: https://script.google.com/macros/s/AKfycb.../exec
-GAS_URL = os.environ.get("GAS_URL", "https://script.google.com/macros/s/AKfycbyI7G4-nN8P-7lT7G_U8Z9-E8Z6/exec") 
+GAS_URL = os.environ.get("GAS_URL", "https://script.google.com/macros/s/AKfycby0RE_RSrIeoyQxGDEMJKA1af-481o6xdJEOULTkmr9Pgxp40STd_3h8Q30BTfvjhwWrw/exec") 
 
 USER_AUTH = {"Conicle": "Conicle@33"}
 
