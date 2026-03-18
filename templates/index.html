@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEM++ | Database</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #f5f5f7;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --success: #34c759;
+            --border: rgba(0, 0, 0, 0.05);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text-main); 
+            margin: 0; padding: 0; -webkit-font-smoothing: antialiased; 
+        }
+        body.is-loading { overflow: hidden; pointer-events: none; }
+
+        .nav-bar {
+            position: sticky; top: 0; z-index: 1000;
+            background: rgba(255, 255, 255, 0.72); backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--border); padding: 0 40px; height: 52px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-main); font-size: 13px; font-weight: 500; opacity: 0.8; transition: 0.2s; }
+        .nav-links a:hover { opacity: 1; color: var(--primary); }
+
+        .loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+
+        .container { max-width: 98%; margin: 40px auto; visibility: hidden; opacity: 0; transition: all 0.5s ease; }
+        .container.is-ready { visibility: visible; opacity: 1; }
+
+        .table-card { 
+            background: var(--card-bg); padding: 32px; border-radius: 28px; 
+            box-shadow: 0 15px 45px rgba(0,0,0,0.03); border: 1px solid var(--border); 
+            backdrop-filter: blur(10px); overflow-x: auto; 
+        }
+
+        table.dataTable { border: none !important; border-collapse: separate !important; border-spacing: 0 4px !important; }
+        table.dataTable thead th { background: transparent !important; color: var(--text-secondary) !important; font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 15px !important; border: none !important; }
+        table.dataTable tbody td { padding: 14px 15px !important; background: rgba(255,255,255,0.5) !important; border-top: 1px solid var(--border) !important; border-bottom: 1px solid var(--border) !important; font-size: 13px; }
+        table.dataTable tbody td:first-child { border-left: 1px solid var(--border) !important; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+        table.dataTable tbody td:last-child { border-right: 1px solid var(--border) !important; border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+
+        /* Inline Progress Bars */
+        .cell-progress-wrapper { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+        .cell-progress-container { flex: 1; background: #e5e5ea; border-radius: 10px; height: 6px; overflow: hidden; }
+        .cell-progress-fill { height: 100%; background: var(--primary); }
+        .cell-value { font-weight: 600; font-size: 11px; color: var(--text-main); min-width: 32px; }
+
+        .status-filter { margin-left: 15px; padding: 8px 16px; border-radius: 12px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; outline: none; background: #fff; }
+        .loader-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="is-loading">
+
+<div class="loading" id="loader"><div class="loader-spinner"></div></div>
+
+<nav class="nav-bar">
+    <div class="nav-logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 24px;">
+        <span>STEM++ Explorer</span>
+    </div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/report">Database Explorer</a>
+        <a href="/calling-list">Calling List</a>
+        <a href="/logout" style="color: #ff3b30;">Sign Out</a>
+    </div>
+
+</nav>
+
+<div class="container" id="main-container">
+    <div class="table-card">
+        <table id="reportTable" class="display nowrap" style="width:100%">
+            <thead>
+                <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                <tr>
+                    {% for col in columns %}
+                    <td>
+                        {% if col == 'date_joined' %}
+                            {% if row[col] != '-' and row[col] != '' %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" checked disabled style="accent-color: var(--success); width: 16px; height: 16px;">
+                                    <span style="font-weight: 600; color: var(--success); font-size: 12px;">{{ row[col] }}</span>
+                                </div>
+                            {% else %}
+                                <input type="checkbox" disabled style="opacity: 0.3; width: 16px; height: 16px;">
+                            {% endif %}
+                        {% elif loop.index0 >= 7 %}
+                            {% if row[col] != '-' and row[col] != '' %}
+                                <div class="cell-progress-wrapper">
+                                    <div class="cell-value">{{ row[col] }}%</div>
+                                    <div class="cell-progress-container">
+                                        <div class="cell-progress-fill" style="width: {{ row[col] }}%; background: {% if row[col]|float >= 100 %}var(--success){% else %}var(--primary){% endif %};"></div>
+                                    </div>
+                                </div>
+                            {% else %}<span style="color: #dadce0;">-</span>{% endif %}
+                        {% else %}{{ row[col] }}{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#reportTable').DataTable({
+            scrollX: true, pageLength: 25, order: [[0, 'asc']], dom: 'Bfrtip',
+            initComplete: function () {
+                // Find Learning Status column index dynamically
+                var learningStatusIdx = -1;
+                this.api().columns().every(function () {
+                    var title = $(this.header()).text().trim();
+                    if (title === 'Learning Status') {
+                        learningStatusIdx = this.index();
+                    }
+                });
+
+                if (learningStatusIdx !== -1) {
+                    this.api().columns([learningStatusIdx]).every( function () {
+                        var column = this;
+                        var select = $('<select class="status-filter"><option value="">All Statuses</option></select>')
+                            .appendTo( $('.nav-links') )
+                            .on( 'change', function () {
+                                var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                                column.search( val ? '^'+val+'$' : '', true, false ).draw();
+                            } );
+                        column.data().unique().sort().each( function ( d, j ) {
+                            if(d !== '-' && d !== '') select.append( '<option value="'+d+'">'+d+'</option>' )
+                        } );
+                    } );
+                }
+            }
+        });
+        $('#main-container').addClass('is-ready');
+        $('#loader').fadeOut(300);
+        $('body').removeClass('is-loading');
+    });
+</script>
+</body>
+</html>

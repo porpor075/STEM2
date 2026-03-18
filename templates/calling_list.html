@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEM++ | Calling List</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+    <style>
+        :root {
+            --color-primary: #FF2E38;
+            --color-bg: #F8F9FB;
+            --color-card: #FFFFFF;
+            --sys-border: #E5E8EB;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--color-bg); margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .card { background: var(--color-card); border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .status-called { color: #10B981; font-weight: bold; }
+        .btn-sync { background: var(--color-primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .select-status { padding: 6px; border-radius: 6px; border: 1px solid var(--sys-border); background: white; font-size: 14px; }
+        .input-note { padding: 6px; border-radius: 6px; border: 1px solid var(--sys-border); font-size: 14px; width: 100%; box-sizing: border-box; }
+        .filter-section { display: flex; gap: 20px; margin-bottom: 20px; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .filter-group { display: flex; flex-direction: column; gap: 8px; }
+        .filter-group label { font-weight: 600; font-size: 14px; color: #4B5563; }
+        .filter-group select { padding: 10px; border-radius: 8px; border: 1px solid var(--sys-border); min-width: 200px; }
+        .btn-save-note { background: none; border: none; color: #3B82F6; cursor: pointer; padding: 5px; }
+        .btn-save-note:hover { color: #2563EB; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-phone-alt" style="color:var(--color-primary)"></i> Telesales Calling List</h1>
+        <div>
+            <a href="/report" style="margin-right: 20px; text-decoration: none; color: #666;">Back to Database</a>
+            <button class="btn-sync" onclick="document.getElementById('uploadInput').click()" style="background: #10B981; margin-right: 10px;">
+                <i class="fas fa-file-upload"></i> Upload Report
+            </button>
+            <button class="btn-sync" onclick="syncAllToGSheet(event)" style="background: #3B82F6; margin-right: 10px;">
+                <i class="fas fa-cloud-upload-alt"></i> Export Database to Google Sheets
+            </button>
+            <input type="file" id="uploadInput" style="display:none" accept=".csv" onchange="uploadReport(this)">
+            <button class="btn-sync" onclick="syncCalledStatus()"><i class="fas fa-sync"></i> Refresh List</button>
+        </div>
+    </div>
+
+    <div class="filter-section">
+        <div class="filter-group">
+            <label>Learning Status</label>
+            <select id="filterLearningStatus">
+                <option value="">All Statuses</option>
+                <option value="Not Start">Not Start</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Enrollment Density</label>
+            <select id="filterDensity">
+                <option value="">All Densities</option>
+                <option value="1">1 Course</option>
+                <option value="2">2 Courses</option>
+                <option value="3">3 Courses</option>
+                <option value="4+">4+ Courses</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Call Status</label>
+            <select id="filterCallStatus">
+                <option value="">All</option>
+                <option value="Pending">Pending</option>
+                <option value="Call สำเร็จ">Call สำเร็จ</option>
+                <option value="ไม่มีคนรับสาย">ไม่มีคนรับสาย</option>
+                <option value="ไม่สนใจเรียนต่อ">ไม่สนใจเรียนต่อ</option>
+                <option value="กำลังเรียน">กำลังเรียน</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Progress Tier</label>
+            <select id="filterProgressTier">
+                <option value="">All Tiers</option>
+                <option value="0%">0%</option>
+                <option value="1-10%">1-10%</option>
+                <option value="11-20%">11-20%</option>
+                <option value="21-30%">21-30%</option>
+                <option value="31-40%">31-40%</option>
+                <option value="41-50%">41-50%</option>
+                <option value="51-60%">51-60%</option>
+                <option value="61-70%">61-70%</option>
+                <option value="71-80%">71-80%</option>
+                <option value="81-90%">81-90%</option>
+                <option value="91-100%">91-100%</option>
+                <option value="100%">100%</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <table id="callingTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th style="width: 150px;">Log Call</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Type</th>
+                    <th>Learning Status</th>
+                    <th>Progress</th>
+                    <th style="text-align: center;">Density</th>
+                    <th>Call Status</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        <select class="select-status" 
+                                data-email="{{ user.Email_Clean }}" 
+                                data-fname="{{ user['First Name'] }}" 
+                                data-lname="{{ user['Last Name'] }}"
+                                data-phone="{{ user.Phone }}"
+                                onchange="updateCallStatus(this)">
+                            <option value="Pending" {% if user.Status == 'Pending' or not user.Status %}selected{% endif %}>Pending</option>
+                            <option value="Call สำเร็จ" {% if user.Status == 'Call สำเร็จ' %}selected{% endif %}>Call สำเร็จ</option>
+                            <option value="ไม่มีคนรับสาย" {% if user.Status == 'ไม่มีคนรับสาย' %}selected{% endif %}>ไม่มีคนรับสาย</option>
+                            <option value="ไม่สนใจเรียนต่อ" {% if user.Status == 'ไม่สนใจเรียนต่อ' %}selected{% endif %}>ไม่สนใจเรียนต่อ</option>
+                            <option value="กำลังเรียน" {% if user.Status == 'กำลังเรียน' %}selected{% endif %}>กำลังเรียน</option>
+                        </select>
+                    </td>
+                    <td>{{ user.Email_Clean }}</td>
+                    <td>{{ user['First Name'] }} {{ user['Last Name'] }}</td>
+                    <td style="font-family: monospace; font-weight: bold;">{{ user.Phone }}</td>
+                    <td>
+                        <select class="select-status customer-type-select" 
+                                data-email="{{ user.Email_Clean }}" 
+                                data-fname="{{ user['First Name'] }}" 
+                                data-lname="{{ user['Last Name'] }}"
+                                data-phone="{{ user.Phone }}"
+                                data-status="{{ user.Status }}"
+                                onchange="updateCallStatus(this)">
+                            <option value="B2C" {% if user['Customer Type'] == 'B2C' %}selected{% endif %}>B2C</option>
+                            <option value="B2B" {% if user['Customer Type'] == 'B2B' %}selected{% endif %}>B2B</option>
+                        </select>
+                    </td>
+                    <td>
+                        {% if user['Learning Status'] == 'Completed' %}
+                            <span style="color: #10B981;"><i class="fas fa-check-circle"></i> Completed</span>
+                        {% elif user['Learning Status'] == 'In Progress' %}
+                            <span style="color: #3B82F6;"><i class="fas fa-clock"></i> In Progress</span>
+                        {% else %}
+                            <span style="color: #9CA3AF;"><i class="fas fa-circle"></i> Not Start</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center; font-weight: bold;">{{ user.User_Progress_Tier }}</td>
+                    <td style="text-align: center; font-family: monospace;">{{ user.Density_Display }}</td>
+                    <td id="status-{{ user.Email_Clean|replace('@','-')|replace('.','-') }}">
+                        {% if user.Status == 'Pending' or not user.Status %}
+                            <span style="color:#9CA3AF;">Pending</span>
+                        {% else %}
+                            <span class="status-called">{{ user.Status }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="display: flex; align-items: center; gap: 5px;">
+                        <input type="text" class="input-note" value="{{ user.Note }}" placeholder="Add note...">
+                        <button class="btn-save-note" 
+                                data-email="{{ user.Email_Clean }}" 
+                                data-fname="{{ user['First Name'] }}" 
+                                data-lname="{{ user['Last Name'] }}"
+                                data-phone="{{ user.Phone }}"
+                                onclick="saveNote(this)">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            const table = $('#callingTable').DataTable({
+                pageLength: 50,
+                order: [[8, 'asc']]
+            });
+
+            // Custom Filters
+            $('#filterLearningStatus').on('change', function() {
+                table.column(5).search(this.value).draw();
+            });
+
+            $('#filterProgressTier').on('change', function() {
+                table.column(6).search(this.value).draw();
+            });
+
+            $('#filterCallStatus').on('change', function() {
+                table.column(8).search(this.value).draw();
+            });
+
+            $('#filterDensity').on('change', function() {
+                const val = this.value;
+                $.fn.dataTable.ext.search.push(
+                    function(settings, data, dataIndex) {
+                        if (!val) return true;
+                        const density = parseInt(data[7]);
+                        if (val === '4+') return density >= 4;
+                        return density === parseInt(val);
+                    }
+                );
+                table.draw();
+                $.fn.dataTable.ext.search.pop();
+            });
+        });
+
+        async function saveNote(btn) {
+            const row = btn.closest('tr');
+            const note = row.querySelector('.input-note').value;
+            const statusSelect = row.querySelector('.select-status:not(.customer-type-select)');
+            const typeSelect = row.querySelector('.customer-type-select');
+            
+            const email = btn.dataset.email;
+            const fname = btn.dataset.fname;
+            const lname = btn.dataset.lname;
+            const phone = btn.dataset.phone;
+            const progressTier = row.cells[6].textContent.trim();
+            
+            const status = statusSelect.value;
+            const customerType = typeSelect.value;
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/mark-called', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, fname, lname, phone, status, customerType, note, progressTier })
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    btn.innerHTML = '<i class="fas fa-check" style="color:#10B981"></i>';
+                    setTimeout(() => { btn.innerHTML = '<i class="fas fa-save"></i>'; btn.disabled = false; }, 2000);
+                } else {
+                    alert('Save failed: ' + result.message);
+                    btn.innerHTML = '<i class="fas fa-save"></i>';
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                alert('Network error');
+                btn.innerHTML = '<i class="fas fa-save"></i>';
+                btn.disabled = false;
+            }
+        }
+
+        async function updateCallStatus(select) {
+            const isTypeChange = select.classList.contains('customer-type-select');
+            const row = select.closest('tr');
+            
+            const statusSelect = row.querySelector('.select-status:not(.customer-type-select)');
+            const typeSelect = row.querySelector('.customer-type-select');
+            const noteInput = row.querySelector('.input-note');
+            
+            const status = statusSelect.value;
+            const customerType = typeSelect.value;
+            const note = noteInput.value;
+            const progressTier = row.cells[6].textContent.trim();
+            
+            const email = select.dataset.email;
+            const fname = select.dataset.fname;
+            const lname = select.dataset.lname;
+            const phone = select.dataset.phone;
+            
+            const confirmMsg = isTypeChange 
+                ? `Change ${fname} to type ${customerType}?`
+                : `Update status for ${fname} to "${status}"?`;
+
+            if (!confirm(confirmMsg)) {
+                location.reload();
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mark-called', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, fname, lname, phone, status, customerType, note, progressTier })
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    const statusId = 'status-' + email.replace(/[@.]/g, '-');
+                    const statusDisplay = document.getElementById(statusId);
+                    if (status === 'Pending') {
+                        statusDisplay.innerHTML = '<span style="color:#9CA3AF;">Pending</span>';
+                    } else {
+                        statusDisplay.innerHTML = `<span class="status-called">${status}</span>`;
+                    }
+                } else {
+                    alert('Error: ' + result.message);
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Network error occurred');
+                location.reload();
+            }
+        }
+
+        async function uploadReport(input) {
+            if (!input.files || input.files.length === 0) return;
+            
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            if (!confirm(`Upload ${file.name} and sync new users to Google Sheet?`)) {
+                input.value = '';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/upload-calling-list', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                alert(result.message || 'Sync complete');
+                location.reload();
+            } catch (error) {
+                alert('Upload failed: ' + error);
+            }
+            input.value = '';
+        }
+
+        async function syncAllToGSheet(event) {
+            if (!confirm(`Export ALL learners from database to Google Sheets? This will sync all unique users to the Calling List.`)) {
+                return;
+            }
+
+            const btn = event.currentTarget;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/sync-all-to-gsheet', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                alert(result.message || 'Export complete');
+                location.reload();
+            } catch (error) {
+                alert('Export failed: ' + error);
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        function syncCalledStatus() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>

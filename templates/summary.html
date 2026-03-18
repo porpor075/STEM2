@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEM++ | Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #f5f5f7;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --success: #34c759;
+            --warning: #ff9500;
+            --border: rgba(0, 0, 0, 0.05);
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            margin: 0; 
+            padding: 0; 
+            -webkit-font-smoothing: antialiased; 
+        }
+
+        body.is-loading { overflow: hidden; pointer-events: none; }
+
+        /* Navigation Bar */
+        .nav-bar {
+            position: sticky; top: 0; z-index: 1000;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px; height: 52px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .nav-logo img { height: 24px; }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-main); font-size: 13px; font-weight: 500; opacity: 0.8; transition: 0.2s; }
+        .nav-links a:hover { opacity: 1; color: var(--primary); }
+
+        .refresh-btn {
+            background: var(--primary); color: white; padding: 6px 16px; border: none;
+            border-radius: 20px; cursor: pointer; font-weight: 500; font-size: 12px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .refresh-btn:hover { transform: scale(1.05); opacity: 0.9; }
+
+        /* Loader */
+        .loading { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: white; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999; 
+        }
+
+        /* Container */
+        .container { max-width: 90%; margin: 40px auto; visibility: hidden; opacity: 0; transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1); transform: translateY(20px); }
+        .container.is-ready { visibility: visible; opacity: 1; transform: translateY(0); }
+
+        /* Cards */
+        .section { 
+            background: var(--card-bg); border-radius: 24px; 
+            padding: 32px; border: 1px solid var(--border);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+            margin-bottom: 32px; backdrop-filter: blur(10px);
+        }
+        h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.8px; margin-bottom: 24px; }
+        h3 { font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 20px; letter-spacing: -0.4px; }
+
+        /* Stats Grid */
+        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 32px; }
+        .stat-card {
+            background: white; padding: 24px; border-radius: 22px;
+            border: 1px solid var(--border); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .stat-card:hover { transform: scale(1.02); box-shadow: 0 12px 40px rgba(0,0,0,0.06); border-color: var(--primary); }
+        .stat-card.active { background: #f0f7ff; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+        .stat-card h4 { margin: 0; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .stat-card .number { font-size: 32px; font-weight: 700; margin: 10px 0; color: var(--text-main); letter-spacing: -1px; }
+
+        /* Progress Bars */
+        .progress-container { width: 100%; background: #e5e5ea; border-radius: 10px; height: 10px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 10px; background: var(--primary); transition: width 1s ease; }
+        
+        /* Modern Table */
+        table.dataTable { border: none !important; border-collapse: separate !important; border-spacing: 0 10px !important; }
+        table.dataTable thead th { background: transparent !important; color: var(--text-secondary) !important; font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 12px !important; border: none !important; }
+        table.dataTable tbody tr { background-color: rgba(255,255,255,0.5) !important; transition: all 0.2s; }
+        table.dataTable tbody tr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        table.dataTable tbody td { padding: 16px !important; border: none !important; border-top: 1px solid var(--border) !important; border-bottom: 1px solid var(--border) !important; font-size: 14px; }
+        table.dataTable tbody td:first-child { border-left: 1px solid var(--border) !important; border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+        table.dataTable tbody td:last-child { border-right: 1px solid var(--border) !important; border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+
+        /* Live Activity Specific Table Adjustments */
+        #allUsersTable tbody td { font-size: 13px; padding: 12px 15px !important; }
+        .live-progress-wrapper { display: flex; align-items: center; gap: 15px; min-width: 180px; }
+        .live-progress-container { flex: 1; background: #e5e5ea; border-radius: 10px; height: 10px; overflow: hidden; }
+        
+        /* Course Performance Specific Table Adjustments */
+        #contentStatsTable tbody td { font-size: 13px; padding: 12px 15px !important; }
+        .course-progress-wrapper { display: flex; align-items: center; gap: 10px; min-width: 120px; }
+        .course-progress-container { flex: 1; background: #e5e5ea; border-radius: 8px; height: 8px; overflow: hidden; }
+        
+        .loader-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .filter-info { font-size: 13px; color: var(--primary); font-weight: 600; margin-left: 12px; background: #e8f0fe; padding: 4px 14px; border-radius: 20px; display: none; }
+    </style>
+</head>
+<body class="is-loading">
+
+<div class="loading" id="loader"><div class="loader-spinner"></div></div>
+
+<nav class="nav-bar">
+    <div class="nav-logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+        <span>STEM++</span>
+    </div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/report">Database Explorer</a>
+        <a href="/calling-list">Calling List</a>
+        <button class="refresh-btn" onclick="refreshData()">Sync Data</button>
+        <a href="/logout" style="color: #ff3b30;">Sign Out</a>
+    </div>
+</nav>
+
+<div class="container" id="main-container">
+    <h2>Learning Dashboard</h2>
+
+    <div class="stats-container">
+        <div class="stat-card active" onclick="filterByStatus('all', this)">
+            <h4>Total Learner</h4>
+            <div class="number" style="color: var(--primary);">{{ total_users }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(รวมคนลงทะเบียนทั้งหมด)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('accessed', this)" style="border-left: 4px solid var(--success);">
+            <h4>Active (Accessed)</h4>
+            <div class="number" style="color: var(--success);">{{ joined_users_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(เข้าใช้งานระบบแล้ว)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('0', this)">
+            <h4>Not Started</h4>
+            <div class="number" style="color: var(--text-secondary);">{{ users_0_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress = 0%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('in-progress-early', this)">
+            <h4>Early Learning</h4>
+            <div class="number" style="color: var(--warning);">{{ users_1_50_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress 1% - 50%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('in-progress-high', this)">
+            <h4>Nearing Finish</h4>
+            <div class="number" style="color: #af52de;">{{ users_51_99_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress 51% - 99%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('100', this)">
+            <h4>Completed</h4>
+            <div class="number" style="color: var(--success);">{{ users_100_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress = 100%)</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Course Performance</h3>
+        <table id="contentStatsTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Content Name</th>
+                    <th>Provider</th>
+                    <th>Total</th>
+                    <th>Done</th>
+                    <th>Learning</th>
+                    <th>Wait</th>
+                    <th>Success Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in content_stats %}
+                {% set rate = (item['Completed'] / item['Total'] * 100)|round(1) if item['Total'] > 0 else 0 %}
+                <tr>
+                    <td><strong>{{ item['Content Name'] }}</strong></td>
+                    <td style="color:var(--text-secondary); font-size: 12px;">{{ item['Content Provider'] }}</td>
+                    <td>{{ item['Total'] }}</td>
+                    <td><span style="color:var(--success); font-weight:700;">{{ item['Completed'] }}</span></td>
+                    <td><span style="color:var(--warning); font-weight:700;">{{ item['InProgress'] }}</span></td>
+                    <td>{{ item['NotStarted'] }}</td>
+                    <td>
+                        <div class="course-progress-wrapper">
+                            <span style="min-width: 35px; font-weight:700; font-size: 11px;">{{ rate }}%</span>
+                            <div class="course-progress-container">
+                                <div class="progress-bar-fill" style="width: {{ rate }}%; background: var(--success);"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700;">
+                    <td colspan="2" style="text-align:right;">SUM:</td>
+                    <td id="sumTotal"></td>
+                    <td id="sumCompleted"></td>
+                    <td id="sumInProgress"></td>
+                    <td id="sumNotStarted"></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Daily Completion Trend</h3>
+        <div style="height: 250px;"><canvas id="dailyCompletionChart"></canvas></div>
+        <table id="dailyCompletionTable" class="display compact" style="width:100%; margin-top:20px;">
+            <thead><tr><th>Date</th><th>Completed</th></tr></thead>
+            <tbody>
+                {% for i in range(daily_completion_data.labels|length) %}
+                <tr><td>{{ daily_completion_data.labels[i] }}</td><td>{{ daily_completion_data.values[i] }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Enrollment Density</h3>
+        <div style="height: 250px;"><canvas id="densityChart"></canvas></div>
+    </div>
+
+    <div class="section">
+        <h3>Live Activity <span id="activeFilterLabel" class="filter-info"></span></h3>
+        <table id="allUsersTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Course</th>
+                    <th>Progress</th>
+                    <th style="display:none;">StatusID</th>
+                    <th style="display:none;">DateJoined</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in all_users_list %}
+                <tr>
+                    <td>{{ row.Email }}</td>
+                    <td>{{ row['First Name'] }} {{ row['Last Name'] }}</td>
+                    <td>{{ row['Content Name'] }}</td>
+                    <td>
+                        <div class="live-progress-wrapper">
+                            <span style="min-width: 40px; font-weight:700; font-size: 12px;">{{ row[latest_date] }}%</span>
+                            <div class="live-progress-container">
+                                <div class="progress-bar-fill" style="width: {{ row[latest_date] }}%; background: {% if row[latest_date]|float == 100 %}var(--success){% elif row[latest_date]|float > 0 %}var(--primary){% else %}#dadce0{% endif %};"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="display:none;">{{ row['User_Status_Category'] }}</td>
+                    <td style="display:none;">{{ row['date_joined'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+    var currentTable;
+    $(document).ready(function() {
+        const ctx = document.getElementById('densityChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels|tojson }},
+                datasets: [{
+                    data: {{ chart_values|tojson }},
+                    backgroundColor: '#0071e3',
+                    borderRadius: 6
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+        });
+        
+        const dCtx = document.getElementById('dailyCompletionChart').getContext('2d');
+        new Chart(dCtx, {
+            type: 'line',
+            data: {
+                labels: {{ daily_completion_data.labels|tojson }},
+                datasets: [{
+                    label: 'Completions',
+                    data: {{ daily_completion_data.values|tojson }},
+                    borderColor: '#34c759',
+                    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        currentTable = $('#allUsersTable').DataTable({ pageLength: 15, order: [[3, 'desc']], dom: 'ftip' });
+        $('#dailyCompletionTable').DataTable({ pageLength: 5, order: [[0, 'desc']], dom: 'ftip' });
+
+        $('#contentStatsTable').DataTable({
+            paging: false, dom: 't', order: [[2, 'desc']],
+            footerCallback: function (row, data, start, end, display) {
+                var api = this.api();
+                [2, 3, 4, 5].forEach(function(colIdx) {
+                    var total = api.column(colIdx).data().reduce(function(a, b){ 
+                        var cleanA = typeof a === 'string' ? a.replace(/<[^>]*>/g, '') : a;
+                        var cleanB = typeof b === 'string' ? b.replace(/<[^>]*>/g, '') : b;
+                        return (parseFloat(cleanA)||0) + (parseFloat(cleanB)||0); 
+                    }, 0);
+                    var ids = ['#sumTotal', '#sumCompleted', '#sumInProgress', '#sumNotStarted'];
+                    $(ids[colIdx-2]).html(total.toLocaleString());
+                });
+            }
+        });
+
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            var filterType = window.currentFilter || 'all';
+            var userCategory = data[4]; // StatusID
+            var dateJoined = data[5];   // DateJoined
+            
+            if (filterType === 'all') return true;
+            if (filterType === 'accessed') return dateJoined !== '-' && dateJoined !== '';
+            return userCategory === filterType;
+        });
+
+        $('#main-container').addClass('is-ready');
+        $('#loader').fadeOut(400);
+        $('body').removeClass('is-loading');
+    });
+
+    function filterByStatus(type, element) {
+        window.currentFilter = type;
+        $('.stat-card').removeClass('active');
+        $(element).addClass('active');
+        var label = $('#activeFilterLabel');
+        if(type === 'all') label.hide();
+        else { label.text('FILTERED VIEW: ' + type.toUpperCase()).fadeIn(); }
+        currentTable.draw();
+    }
+
+    function refreshData() {
+        $('body').addClass('is-loading');
+        $('#loader').fadeIn(200);
+        fetch('/api/refresh').then(r => r.json()).then(d => { location.reload(); })
+        .catch(e => { alert('Sync Error'); $('#loader').fadeOut(200); $('body').removeClass('is-loading'); });
+    }
+</script>
+</body>
+</html>
