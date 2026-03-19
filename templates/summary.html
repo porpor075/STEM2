@@ -217,20 +217,13 @@
 
     <div class="section">
         <h3>Daily Completion Trend</h3>
-        <div style="height: 250px;"><canvas id="dailyCompletionChart"></canvas></div>
-        <table id="dailyCompletionTable" class="display compact" style="width:100%; margin-top:20px;">
-            <thead><tr><th>Date</th><th>Completed</th></tr></thead>
-            <tbody>
-                {% for i in range(daily_completion_data['labels']|length) %}
-                <tr><td>{{ daily_completion_data['labels'][i] }}</td><td>{{ daily_completion_data['values'][i] }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div style="height: 350px;"><canvas id="dailyCompletionChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Overall represents all completions. Individual lines show course-specific completions.</div>
     </div>
 
     <div class="section">
-        <h3>Enrollment Density</h3>
-        <div style="height: 250px;"><canvas id="densityChart"></canvas></div>
+        <h3>Latest Progress Distribution</h3>
+        <div style="height: 350px;"><canvas id="densityChart"></canvas></div>
     </div>
 
     <div class="section">
@@ -281,33 +274,76 @@
             data: {
                 labels: {{ chart_labels|tojson }},
                 datasets: [{
+                    label: 'Number of Learners',
                     data: {{ chart_values|tojson }},
-                    backgroundColor: '#0071e3',
-                    borderRadius: 6
+                    backgroundColor: 'rgba(0, 113, 227, 0.7)',
+                    borderColor: '#0071e3',
+                    borderWidth: 1,
+                    borderRadius: 4
                 }]
             },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+            options: { 
+                indexAxis: 'y', 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ' ' + context.parsed.x + ' learners';
+                            }
+                        }
+                    }
+                }, 
+                scales: { 
+                    x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, 
+                    y: { grid: { display: false } } 
+                } 
+            }
         });
         
         const dCtx = document.getElementById('dailyCompletionChart').getContext('2d');
+        const dailyData = {{ daily_completion_data|tojson }};
+        const datasets = dailyData.datasets.map((ds, index) => {
+            const isOverall = ds.label === 'Overall';
+            return {
+                label: ds.label,
+                data: ds.values,
+                borderColor: ds.color || `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
+                backgroundColor: 'transparent',
+                borderWidth: isOverall ? 3 : 1.5,
+                pointRadius: isOverall ? 4 : 2,
+                tension: 0.3,
+                hidden: !isOverall // Hide individual courses by default to avoid clutter
+            };
+        });
+
         new Chart(dCtx, {
             type: 'line',
             data: {
-                labels: {{ daily_completion_data['labels']|tojson }},
-                datasets: [{
-                    label: 'Completions',
-                    data: {{ daily_completion_data['values']|tojson }},
-                    borderColor: '#34c759',
-                    backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                }]
+                labels: dailyData.labels,
+                datasets: datasets
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { 
+                        display: true, 
+                        position: 'bottom',
+                        labels: { boxWidth: 12, font: { size: 10 } }
+                    },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } },
+                    x: { grid: { display: false } }
+                }
+            }
         });
 
         currentTable = $('#allUsersTable').DataTable({ pageLength: 15, order: [[3, 'desc']], dom: 'ftip' });
-        $('#dailyCompletionTable').DataTable({ pageLength: 5, order: [[0, 'desc']], dom: 'ftip' });
 
         $('#contentStatsTable').DataTable({
             paging: false, dom: 't', order: [[2, 'desc']],
