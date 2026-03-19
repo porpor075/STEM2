@@ -165,13 +165,39 @@ def summary():
                     return d
             return None
         
+        # 1. Daily Completion Trend (Multi-line)
         df['Completion_Date'] = df.apply(find_completion_date, axis=1)
-        daily_completions = df[df['Completion_Date'].notnull()].groupby('Completion_Date').size().sort_index().reset_index(name='count')
         
+        # Get overall completions
+        overall_daily = df[df['Completion_Date'].notnull()].groupby('Completion_Date').size().sort_index().reset_index(name='count')
+        
+        # Get completions per course
+        course_daily = df[df['Completion_Date'].notnull()].groupby(['Completion_Date', 'Content Name']).size().unstack(fill_value=0)
+        
+        # Build multi-line chart data
+        all_dates = sorted(df['Completion_Date'].dropna().unique().tolist())
         daily_data = {
-            "labels": daily_completions['Completion_Date'].tolist(),
-            "values": daily_completions['count'].tolist()
+            "labels": all_dates,
+            "datasets": []
         }
+        
+        # Add "Overall" dataset
+        overall_values = [int(overall_daily[overall_daily['Completion_Date'] == d]['count'].iloc[0]) if d in overall_daily['Completion_Date'].values else 0 for d in all_dates]
+        daily_data["datasets"].append({
+            "label": "Overall",
+            "values": overall_values,
+            "color": "#34c759"
+        })
+        
+        # Add individual course datasets
+        for course in course_daily.columns:
+            course_values = [int(course_daily.loc[d, course]) if d in course_daily.index else 0 for d in all_dates]
+            # Only add if there are actual completions
+            if sum(course_values) > 0:
+                daily_data["datasets"].append({
+                    "label": course,
+                    "values": course_values
+                })
         
         total_unique = df['Email'].nunique()
         joined_count = df[df['date_joined'].astype(str) != '-']['Email'].nunique()
@@ -195,10 +221,23 @@ def summary():
             NotStarted=('Learning Status', lambda x: (x.astype(str) == 'Not Start').sum())
         ).reset_index().to_dict(orient='records')
 
-        # Density Chart Data
-        density = df.groupby('Email').size().value_counts().sort_index()
-        chart_labels = [f"{i} Courses" for i in density.index]
-        chart_values = density.values.tolist()
+        # 2. Enrollment Density -> Progress Tier Chart
+        # Tiers: 0%, 1-10%, 11-20%, ..., 91-99%, 100%
+        def get_progress_tier_label(p):
+            if p >= 100: return "100% (Complete)"
+            if p <= 0: return "0% (Not Start)"
+            if p >= 91: return "91-99%"
+            tier = (int(p)//10)*10
+            return f"{tier+1}-{tier+10}%"
+        
+        tier_order = ["0% (Not Start)", "1-10%", "11-20%", "21-30%", "31-40%", "41-50%", "51-60%", "61-70%", "71-80%", "81-90%", "91-99%", "100% (Complete)"]
+        
+        # We want the LATEST progress of each user (max across all courses for that user)
+        # Actually, let's just use user_max we calculated earlier
+        tier_counts = user_max.apply(get_progress_tier_label).value_counts()
+        
+        chart_labels = tier_order
+        chart_values = [int(tier_counts.get(t, 0)) for t in tier_order]
 
         return render_template('summary.html', total_users=total_unique, joined_users_count=joined_count,
                                users_100_count=u100, users_51_99_count=u51, 
