@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEM++ | Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #f5f5f7;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --success: #34c759;
+            --warning: #ff9500;
+            --border: rgba(0, 0, 0, 0.05);
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            margin: 0; 
+            padding: 0; 
+            -webkit-font-smoothing: antialiased; 
+        }
+
+        body.is-loading { overflow: hidden; pointer-events: none; }
+
+        /* Navigation Bar */
+        .nav-bar {
+            position: sticky; top: 0; z-index: 1000;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px; height: 52px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .nav-logo img { height: 24px; }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-main); font-size: 13px; font-weight: 500; opacity: 0.8; transition: 0.2s; }
+        .nav-links a:hover { opacity: 1; color: var(--primary); }
+
+        .refresh-btn {
+            background: var(--primary); color: white; padding: 6px 16px; border: none;
+            border-radius: 20px; cursor: pointer; font-weight: 500; font-size: 12px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .refresh-btn:hover { transform: scale(1.05); opacity: 0.9; }
+
+        /* Loader */
+        .loading { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: white; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999; 
+        }
+
+        /* Container */
+        .container { max-width: 90%; margin: 40px auto; visibility: hidden; opacity: 0; transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1); transform: translateY(20px); }
+        .container.is-ready { visibility: visible; opacity: 1; transform: translateY(0); }
+
+        /* Cards */
+        .section { 
+            background: var(--card-bg); border-radius: 24px; 
+            padding: 32px; border: 1px solid var(--border);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+            margin-bottom: 32px; backdrop-filter: blur(10px);
+            position: relative;
+        }
+        h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.8px; margin-bottom: 24px; }
+        h3 { font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 20px; letter-spacing: -0.4px; }
+
+        /* Chart Header with Filters */
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .chart-header h3 { margin-bottom: 0; }
+        .granularity-filters { display: flex; background: #eee; padding: 3px; border-radius: 12px; }
+        .granularity-btn { 
+            border: none; background: transparent; padding: 6px 14px; border-radius: 9px; 
+            font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+            transition: all 0.2s;
+        }
+        .granularity-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        /* Stats Grid */
+        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 32px; }
+        .stat-card {
+            background: white; padding: 24px; border-radius: 22px;
+            border: 1px solid var(--border); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .stat-card:hover { transform: scale(1.02); box-shadow: 0 12px 40px rgba(0,0,0,0.06); border-color: var(--primary); }
+        .stat-card.active { background: #f0f7ff; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+        .stat-card h4 { margin: 0; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .stat-card .number { font-size: 32px; font-weight: 700; margin: 10px 0; color: var(--text-main); letter-spacing: -1px; }
+
+        /* Progress Bars */
+        .progress-container { width: 100%; background: #e5e5ea; border-radius: 10px; height: 10px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 10px; background: var(--primary); transition: width 1s ease; }
+        
+        /* Modern Table */
+        table.dataTable { border: none !important; border-collapse: separate !important; border-spacing: 0 10px !important; }
+        table.dataTable thead th { background: transparent !important; color: var(--text-secondary) !important; font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 12px !important; border: none !important; }
+        table.dataTable tbody tr { background-color: rgba(255,255,255,0.5) !important; transition: all 0.2s; }
+        table.dataTable tbody tr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        table.dataTable tbody td { padding: 16px !important; border: none !important; border-top: 1px solid var(--border) !important; border-bottom: 1px solid var(--border) !important; font-size: 14px; }
+        table.dataTable tbody td:first-child { border-left: 1px solid var(--border) !important; border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+        table.dataTable tbody td:last-child { border-right: 1px solid var(--border) !important; border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+
+        /* Live Activity Specific Table Adjustments */
+        #allUsersTable tbody td { font-size: 13px; padding: 12px 15px !important; }
+        .live-progress-wrapper { display: flex; align-items: center; gap: 15px; min-width: 180px; }
+        .live-progress-container { flex: 1; background: #e5e5ea; border-radius: 10px; height: 10px; overflow: hidden; }
+        
+        /* Course Performance Specific Table Adjustments */
+        #contentStatsTable tbody td { font-size: 13px; padding: 12px 15px !important; }
+        .course-progress-wrapper { display: flex; align-items: center; gap: 10px; min-width: 120px; }
+        .course-progress-container { flex: 1; background: #e5e5ea; border-radius: 8px; height: 8px; overflow: hidden; }
+        
+        .loader-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .filter-info { font-size: 13px; color: var(--primary); font-weight: 600; margin-left: 12px; background: #e8f0fe; padding: 4px 14px; border-radius: 20px; display: none; }
+    </style>
+</head>
+<body class="is-loading">
+
+<div class="loading" id="loader"><div class="loader-spinner"></div></div>
+
+<nav class="nav-bar">
+    <div class="nav-logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+        <span>STEM++</span>
+    </div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/issue">Issue Tracking</a>
+        <a href="/report">Database Explorer</a>
+        <a href="/calling-list">Calling List</a>
+        <button class="refresh-btn" onclick="refreshData()">Sync Data</button>
+        <a href="/logout" style="color: #ff3b30;">Sign Out</a>
+    </div>
+</nav>
+
+<div class="container" id="main-container">
+    <h2>Learning Dashboard</h2>
+
+    <div class="stats-container">
+        <div class="stat-card active" onclick="filterByStatus('all', this)">
+            <h4>Total Learner</h4>
+            <div class="number" style="color: var(--primary);">{{ total_users }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(รวมคนลงทะเบียนทั้งหมด)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('accessed', this)" style="border-left: 4px solid var(--success);">
+            <h4>Active (Accessed)</h4>
+            <div class="number" style="color: var(--success);">{{ joined_users_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(เข้าใช้งานระบบแล้ว)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('0', this)">
+            <h4>Not Started</h4>
+            <div class="number" style="color: var(--text-secondary);">{{ users_0_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress = 0%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('in-progress-early', this)">
+            <h4>Early Learning</h4>
+            <div class="number" style="color: var(--warning);">{{ users_1_50_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress 1% - 50%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('in-progress-high', this)">
+            <h4>Nearing Finish</h4>
+            <div class="number" style="color: #af52de;">{{ users_51_99_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress 51% - 99%)</p>
+        </div>
+        <div class="stat-card" onclick="filterByStatus('100', this)">
+            <h4>Completed</h4>
+            <div class="number" style="color: var(--success);">{{ users_100_count }}</div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(Progress = 100%)</p>
+        </div>
+        <div class="stat-card" style="background: #fdf2f2; border-color: #feb2b2;">
+            <h4>Mean Completion Time</h4>
+            <div class="number" style="color: #c53030;">{{ avg_days }} <span style="font-size: 14px;">Days</span></div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(ระยะเวลาเรียนจบเฉลี่ย)</p>
+        </div>
+        <div class="stat-card" style="background: #faf5ff; border-color: #d6bcfa;">
+            <h4>Median Completion Time</h4>
+            <div class="number" style="color: #6b46c1;">{{ median_days }} <span style="font-size: 14px;">Days</span></div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(มัธยฐาน/ค่ากลางระยะเวลาเรียน)</p>
+        </div>
+        <div class="stat-card" style="background: #ffffed; border-color: #fefcbf;">
+            <h4>Mode Completion Time</h4>
+            <div class="number" style="color: #b7791f;">{{ mode_days }} <span style="font-size: 14px;">Days</span></div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(ฐานนิยม/ค่าที่พบบ่อยที่สุด)</p>
+        </div>
+        <div class="stat-card" style="background: #f0fff4; border-color: #9ae6b4;">
+            <h4>Min Completion Time</h4>
+            <div class="number" style="color: #2f855a;">{{ min_days }} <span style="font-size: 14px;">Days</span></div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(คนเรียนจบเร็วที่สุด)</p>
+        </div>
+        <div class="stat-card" style="background: #fffaf0; border-color: #fbd38d;">
+            <h4>Max Completion Time</h4>
+            <div class="number" style="color: #c05621;">{{ max_days }} <span style="font-size: 14px;">Days</span></div>
+            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(คนเรียนจบช้าที่สุด)</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Course Performance</h3>
+        <table id="contentStatsTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Content Name</th>
+                    <th>Provider</th>
+                    <th>Total</th>
+                    <th>Done</th>
+                    <th>Learning</th>
+                    <th>Wait</th>
+                    <th>Success Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in content_stats %}
+                {% set rate = (item['Completed'] / item['Total'] * 100)|round(1) if item['Total'] > 0 else 0 %}
+                <tr>
+                    <td><strong>{{ item['Content Name'] }}</strong></td>
+                    <td style="color:var(--text-secondary); font-size: 12px;">{{ item['Content Provider'] }}</td>
+                    <td>{{ item['Total'] }}</td>
+                    <td><span style="color:var(--success); font-weight:700;">{{ item['Completed'] }}</span></td>
+                    <td><span style="color:var(--warning); font-weight:700;">{{ item['InProgress'] }}</span></td>
+                    <td>{{ item['NotStarted'] }}</td>
+                    <td>
+                        <div class="course-progress-wrapper">
+                            <span style="min-width: 35px; font-weight:700; font-size: 11px;">{{ rate }}%</span>
+                            <div class="course-progress-container">
+                                <div class="progress-bar-fill" style="width: {{ rate }}%; background: var(--success);"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700;">
+                    <td colspan="2" style="text-align:right;">SUM:</td>
+                    <td id="sumTotal"></td>
+                    <td id="sumCompleted"></td>
+                    <td id="sumInProgress"></td>
+                    <td id="sumNotStarted"></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Daily Completion Trend</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateCompletionChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateCompletionChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateCompletionChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 350px;"><canvas id="dailyCompletionChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Overall represents all completions. Individual lines show course-specific completions.</div>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Daily Learning Start Trend</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateStartChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateStartChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateStartChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 350px;"><canvas id="dailyStartChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Represents count of learners who started their FIRST course in the system.</div>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Daily Activity Funnel Comparison</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateFunnelChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateFunnelChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateFunnelChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 400px;"><canvas id="activityFunnelChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Comparison of new users added, users starting, and users completing each day.</div>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Daily Learning Summary Trend</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateLearningSummaryChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateLearningSummaryChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateLearningSummaryChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 400px;"><canvas id="learningSummaryChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Comparison of learner status distribution over time (snapshots).</div>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Facebook Ads vs Learning Starts</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateFBStartChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateFBStartChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateFBStartChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 400px;"><canvas id="fbStartChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Compare Reach, Impressions, and Cost per Result (Manual Calc) against new learning starts.</div>
+    </div>
+
+    <div class="section">
+        <div class="chart-header">
+            <h3>Facebook Ads vs Daily Graduates</h3>
+            <div class="granularity-filters">
+                <button class="granularity-btn active" onclick="updateFBGradChart('daily', this)">Daily</button>
+                <button class="granularity-btn" onclick="updateFBGradChart('weekly', this)">Weekly</button>
+                <button class="granularity-btn" onclick="updateFBGradChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div style="height: 400px;"><canvas id="fbGradChart"></canvas></div>
+        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Compare amount spent on FB Ads (THB) against daily completions (Graduates).</div>
+    </div>
+
+    <div class="section">
+        <h3>Latest Progress Distribution</h3>
+        <div style="height: 350px;"><canvas id="densityChart"></canvas></div>
+    </div>
+
+    <div class="section">
+        <h3>Daily Learning Summary</h3>
+        <table id="dailyStatsTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Total Learner</th>
+                    <th>Not Started</th>
+                    <th>Early Learning</th>
+                    <th>Nearing Finish</th>
+                    <th>Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in daily_stats %}
+                <tr>
+                    <td><strong>{{ row.date }}</strong></td>
+                    <td><span style="color:#0071e3; font-weight:700;">{{ row.total }}</span></td>
+                    <td>{{ row.not_started }}</td>
+                    <td><span style="color:var(--warning); font-weight:700;">{{ row.early }}</span></td>
+                    <td><span style="color:#af52de; font-weight:700;">{{ row.nearing }}</span></td>
+                    <td><span style="color:var(--success); font-weight:700;">{{ row.completed }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Live Activity <span id="activeFilterLabel" class="filter-info"></span></h3>
+        <table id="allUsersTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Course</th>
+                    <th>Progress</th>
+                    <th style="display:none;">StatusID</th>
+                    <th style="display:none;">DateJoined</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in all_users_list %}
+                <tr>
+                    <td>{{ row.get('Email', '-') }}</td>
+                    <td>{{ row.get('First Name', '') }} {{ row.get('Last Name', '') }}</td>
+                    <td>{{ row.get('Content Name', '-') }}</td>
+                    <td>
+                        <div class="live-progress-wrapper">
+                            {% set prog = row.get(latest_date, 0) if latest_date else 0 %}
+                            <span style="min-width: 40px; font-weight:700; font-size: 12px;">{{ prog }}%</span>
+                            <div class="live-progress-container">
+                                <div class="progress-bar-fill" style="width: {{ prog }}%; background: {% if prog|float >= 100 %}var(--success){% elif prog|float > 0 %}var(--primary){% else %}#dadce0{% endif %};"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="display:none;">{{ row.get('User_Status_Category', 'all') }}</td>
+                    <td style="display:none;">{{ row.get('date_joined', '-') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+    var completionChart, startChart, funnelChart, densityChart, learningSummaryChart, fbGradChart, fbStartChart;
+    
+    // Raw Data storage
+    const rawCompletionData = {{ daily_completion_data|tojson }};
+    const rawStartData = {{ daily_start_data|tojson }};
+    const rawFunnelData = {{ comparison_data|tojson }};
+    const rawLearningSummaryData = {{ learning_comparison_data|tojson }};
+    const rawFBGradData = {{ fb_grad_data|tojson }};
+    const rawFBStartData = {{ fb_start_data|tojson }};
+
+    function getWeek(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    }
+
+    function getStartOfWeek(dateStr) {
+        const d = new Date(dateStr);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day == 0 ? -6 : 1); // Adjust to Monday
+        const monday = new Date(d.setDate(diff));
+        return monday.toISOString().split('T')[0];
+    }
+
+    function aggregateData(labels, datasets, mode, aggType = 'sum', spendData = null) {
+        if (mode === 'daily') return { labels, datasets: datasets.map(ds => ({...ds, data: ds.values || ds.data})) };
+
+        const groups = {};
+        const spendGroups = {};
+        const newLabels = [];
+
+        labels.forEach((l, i) => {
+            let key;
+            if (mode === 'weekly') {
+                key = getStartOfWeek(l);
+            } else {
+                key = l.substring(0, 7); // YYYY-MM
+            }
+
+            if (!groups[key]) {
+                groups[key] = datasets.map(() => 0);
+                spendGroups[key] = 0;
+                newLabels.push(key);
+            }
+            
+            if (spendData) {
+                spendGroups[key] += spendData[i] || 0;
+            }
+
+            datasets.forEach((ds, dsIdx) => {
+                const val = (ds.values ? ds.values[i] : ds.data[i]) || 0;
+                if (aggType === 'sum' || aggType === 'recalc') {
+                    groups[key][dsIdx] += val;
+                } else {
+                    groups[key][dsIdx] = val; // Snapshot: Take the latest value in the period
+                }
+            });
+        });
+
+        const sortedLabels = newLabels.sort();
+        const newDatasets = datasets.map((ds, dsIdx) => {
+            let finalData = sortedLabels.map(l => groups[l][dsIdx]);
+            
+            // Recalculate CPR if this is the CPR dataset
+            if (aggType === 'recalc' && ds.label === 'Cost per Start (THB)') {
+                finalData = sortedLabels.map(l => {
+                    // Search for "Starts (Learning)" dataset index
+                    const startsIdx = datasets.findIndex(d => d.label === 'Starts (Learning)');
+                    const starts = groups[l][startsIdx];
+                    return starts > 0 ? (spendGroups[l] / starts) : 0;
+                });
+            }
+            
+            return { ...ds, data: finalData };
+        });
+
+        return { labels: sortedLabels, datasets: newDatasets };
+    }
+
+    function updateFBStartChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const datasets = [
+            {label: 'New Enrollees (Daily)', data: rawFBStartData.added},
+            {label: 'Starts (Learning)', data: rawFBStartData.starts},
+            {label: 'Completions (Daily)', data: rawFBStartData.completions},
+            {label: 'Campaign Reg (Gift Card)', data: rawFBStartData.campaign},
+            {label: 'Reach', data: rawFBStartData.reach},
+            {label: 'Impressions', data: rawFBStartData.impressions},
+            {label: 'Cost per Start (THB)', data: rawFBStartData.cpr}
+        ];
+        // For CPR recalculation, we need spend data
+        const agg = aggregateData(rawFBStartData.labels, datasets, mode, 'recalc', rawFBGradData.spend);
+        fbStartChart.data.labels = agg.labels;
+        fbStartChart.data.datasets.forEach((ds, i) => {
+            ds.data = agg.datasets[i].data;
+        });
+        fbStartChart.update();
+    }
+
+    $(document).ready(function() {
+        // ... (existing charts initialization)
+        const ctx = document.getElementById('densityChart').getContext('2d');
+        // ... (keep the same code for densityChart)
+        densityChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels|tojson }},
+                datasets: [{
+                    label: 'Number of Learners',
+                    data: {{ chart_values|tojson }},
+                    backgroundColor: 'rgba(0, 113, 227, 0.7)',
+                    borderColor: '#0071e3',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: { 
+                indexAxis: 'y', 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ' ' + context.parsed.x + ' learners';
+                            }
+                        }
+                    }
+                }, 
+                scales: { 
+                    x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, 
+                    y: { grid: { display: false } } 
+                } 
+            }
+        });
+        
+        // Initialize Completion Chart
+        const dCtx = document.getElementById('dailyCompletionChart').getContext('2d');
+        const compDatasets = rawCompletionData.datasets.map((ds, index) => {
+            const isOverall = ds.label === 'Overall';
+            return {
+                label: ds.label,
+                data: ds.values,
+                borderColor: ds.color || `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
+                backgroundColor: 'transparent',
+                borderWidth: isOverall ? 3 : 1.5,
+                pointRadius: (context) => {
+                    const val = context.raw;
+                    return val === 0 ? 0 : (isOverall ? 4 : 2);
+                },
+                pointHitRadius: 10,
+                tension: 0.3,
+                hidden: !isOverall
+            };
+        });
+
+        completionChart = new Chart(dCtx, {
+            type: 'line',
+            data: { labels: rawCompletionData.labels, datasets: compDatasets },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Initialize Start Chart
+        const sCtx = document.getElementById('dailyStartChart').getContext('2d');
+        startChart = new Chart(sCtx, {
+            type: 'line',
+            data: {
+                labels: rawStartData.labels,
+                datasets: [{
+                    label: 'New Learners Starting',
+                    data: rawStartData.values,
+                    borderColor: '#0071e3',
+                    backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                    borderWidth: 3,
+                    pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                    pointHitRadius: 10,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Initialize Funnel Chart
+        const fCtx = document.getElementById('activityFunnelChart').getContext('2d');
+        const transform = (v) => v <= 1500 ? v : (v >= 4000 ? 1500 + (v - 4000) : 1500);
+        const invert = (v) => v <= 1500 ? v : v - 1500 + 4000;
+
+        funnelChart = new Chart(fCtx, {
+            type: 'bar',
+            data: {
+                labels: rawFunnelData.labels,
+                datasets: [
+                    { label: 'Added', data: rawFunnelData.added.map(transform), backgroundColor: 'rgba(59, 130, 246, 0.8)', borderRadius: 4 },
+                    { label: 'Started', data: rawFunnelData.started.map(transform), backgroundColor: 'rgba(245, 158, 11, 0.8)', borderRadius: 4 },
+                    { label: 'Completed', data: rawFunnelData.completed.map(transform), backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                    tooltip: { 
+                        mode: 'index', intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                // Only apply invert if the chart is in daily mode and has the break
+                                const val = context.chart.scales.y.max === 2500 ? invert(context.parsed.y) : context.parsed.y;
+                                return label + val.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true, max: 2500, grid: { color: 'rgba(0,0,0,0.03)' },
+                        ticks: { callback: function(value) { return invert(value).toLocaleString(); } }
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Initialize Learning Summary Chart
+        const lsCtx = document.getElementById('learningSummaryChart').getContext('2d');
+        const lsDatasets = rawLearningSummaryData.datasets.map(ds => ({
+            label: ds.label,
+            data: ds.values,
+            borderColor: ds.color,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: (context) => context.raw === 0 ? 0 : 3,
+            pointHitRadius: 10,
+            tension: 0.3
+        }));
+
+        learningSummaryChart = new Chart(lsCtx, {
+            type: 'line',
+            data: { labels: rawLearningSummaryData.labels, datasets: lsDatasets },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Initialize FB Ads vs Starts Chart
+        const fbsCtx = document.getElementById('fbStartChart').getContext('2d');
+        fbStartChart = new Chart(fbsCtx, {
+            type: 'line',
+            data: {
+                labels: rawFBStartData.labels,
+                datasets: [
+                    {
+                        label: 'New Enrollees (Daily)',
+                        data: rawFBStartData.added,
+                        borderColor: '#5856d6',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Starts (Learning)',
+                        data: rawFBStartData.starts,
+                        borderColor: '#0071e3',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Completions (Daily)',
+                        data: rawFBStartData.completions,
+                        borderColor: '#34c759',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Campaign Reg (Gift Card)',
+                        data: rawFBStartData.campaign,
+                        borderColor: '#ffcc00',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Reach',
+                        borderColor: '#af52de',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: (context) => context.raw === 0 ? 0 : 2,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Impressions',
+                        data: rawFBStartData.impressions,
+                        borderColor: '#ff9500',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        borderDash: [2, 2],
+                        pointRadius: (context) => context.raw === 0 ? 0 : 2,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Cost per Start (THB)',
+                        data: rawFBStartData.cpr,
+                        borderColor: '#ff3b30',
+                        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 3,
+                        pointHitRadius: 10,
+                        yAxisID: 'y1',
+                        fill: true,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: {
+                        type: 'logarithmic', display: true, position: 'left',
+                        title: { display: true, text: 'Counts (Log Scale for Reach/Imp/Start)' },
+                        grid: { color: 'rgba(0,0,0,0.03)' },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                if (value === 10 || value === 100 || value === 1000 || value === 10000 || value === 100000) {
+                                    return value.toLocaleString();
+                                }
+                                return null;
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear', display: true, position: 'right',
+                        title: { display: true, text: 'Cost per Start (THB)' },
+                        grid: { drawOnChartArea: false },
+                        beginAtZero: true
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Initialize FB Ads vs Graduates Chart
+        const fbgCtx = document.getElementById('fbGradChart').getContext('2d');
+        fbGradChart = new Chart(fbgCtx, {
+            type: 'line',
+            data: {
+                labels: rawFBGradData.labels,
+                datasets: [
+                    {
+                        label: 'FB Spend (THB)',
+                        data: rawFBGradData.spend,
+                        borderColor: '#ff3b30',
+                        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 3,
+                        pointHitRadius: 10,
+                        yAxisID: 'y1',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Daily Graduates',
+                        data: rawFBGradData.completions,
+                        borderColor: '#34c759',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
+                        pointHitRadius: 10,
+                        yAxisID: 'y',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: {
+                        type: 'linear', display: true, position: 'left',
+                        title: { display: true, text: 'Graduates (Count)' },
+                        grid: { color: 'rgba(0,0,0,0.03)' },
+                        beginAtZero: true
+                    },
+                    y1: {
+                        type: 'linear', display: true, position: 'right',
+                        title: { display: true, text: 'Spend (THB)' },
+                        grid: { drawOnChartArea: false },
+                        beginAtZero: true
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        currentTable = $('#allUsersTable').DataTable({ pageLength: 15, order: [[3, 'desc']], dom: 'ftip' });
+        $('#dailyStatsTable').DataTable({ pageLength: 10, order: [[0, 'desc']], dom: 'ftip', columnDefs: [{ className: "dt-center", targets: "_all" }] });
+        $('#contentStatsTable').DataTable({
+            paging: false, dom: 't', order: [[2, 'desc']],
+            footerCallback: function (row, data, start, end, display) {
+                var api = this.api();
+                [2, 3, 4, 5].forEach(function(colIdx) {
+                    var total = api.column(colIdx).data().reduce(function(a, b){ 
+                        var cleanA = typeof a === 'string' ? a.replace(/<[^>]*>/g, '') : a;
+                        var cleanB = typeof b === 'string' ? b.replace(/<[^>]*>/g, '') : b;
+                        return (parseFloat(cleanA)||0) + (parseFloat(cleanB)||0); 
+                    }, 0);
+                    var ids = ['#sumTotal', '#sumCompleted', '#sumInProgress', '#sumNotStarted'];
+                    $(ids[colIdx-2]).html(total.toLocaleString());
+                });
+            }
+        });
+
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            var filterType = window.currentFilter || 'all';
+            var userCategory = data[4];
+            var dateJoined = data[5];
+            if (filterType === 'all') return true;
+            if (filterType === 'accessed') return dateJoined !== '-' && dateJoined !== '';
+            return userCategory === filterType;
+        });
+
+        $('#main-container').addClass('is-ready');
+        $('#loader').fadeOut(400);
+        $('body').removeClass('is-loading');
+    });
+
+    function updateCompletionChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const agg = aggregateData(rawCompletionData.labels, rawCompletionData.datasets, mode);
+        completionChart.data.labels = agg.labels;
+        completionChart.data.datasets.forEach((ds, i) => {
+            ds.data = agg.datasets[i].data;
+        });
+        completionChart.update();
+    }
+
+    function updateStartChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const agg = aggregateData(rawStartData.labels, [{label: 'New Learners Starting', data: rawStartData.values}], mode);
+        startChart.data.labels = agg.labels;
+        startChart.data.datasets[0].data = agg.datasets[0].data;
+        startChart.update();
+    }
+
+    function updateFunnelChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const datasets = [
+            {label: 'Added', data: rawFunnelData.added},
+            {label: 'Started', data: rawFunnelData.started},
+            {label: 'Completed', data: rawFunnelData.completed}
+        ];
+        const agg = aggregateData(rawFunnelData.labels, datasets, mode);
+        
+        const transform = (v) => v <= 1500 ? v : (v >= 4000 ? 1500 + (v - 4000) : 1500);
+        const invert = (v) => v <= 1500 ? v : v - 1500 + 4000;
+
+        funnelChart.data.labels = agg.labels;
+        if (mode === 'daily') {
+            funnelChart.data.datasets.forEach((ds, i) => { ds.data = agg.datasets[i].data.map(transform); });
+            funnelChart.options.scales.y.max = 2500;
+            funnelChart.options.scales.y.ticks.callback = function(value) { return invert(value).toLocaleString(); };
+        } else {
+            funnelChart.data.datasets.forEach((ds, i) => { ds.data = agg.datasets[i].data; });
+            delete funnelChart.options.scales.y.max;
+            funnelChart.options.scales.y.ticks.callback = function(value) { return value.toLocaleString(); };
+        }
+        funnelChart.update();
+    }
+
+    function updateLearningSummaryChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const agg = aggregateData(rawLearningSummaryData.labels, rawLearningSummaryData.datasets, mode, 'last');
+        learningSummaryChart.data.labels = agg.labels;
+        learningSummaryChart.data.datasets.forEach((ds, i) => {
+            ds.data = agg.datasets[i].data;
+        });
+        learningSummaryChart.update();
+    }
+
+    function updateFBGradChart(mode, btn) {
+        $(btn).siblings().removeClass('active');
+        $(btn).addClass('active');
+        const datasets = [
+            {label: 'FB Spend (THB)', data: rawFBGradData.spend},
+            {label: 'Daily Graduates', data: rawFBGradData.completions}
+        ];
+        const agg = aggregateData(rawFBGradData.labels, datasets, mode);
+        fbGradChart.data.labels = agg.labels;
+        fbGradChart.data.datasets[0].data = agg.datasets[0].data;
+        fbGradChart.data.datasets[1].data = agg.datasets[1].data;
+        fbGradChart.update();
+    }
+
+    function filterByStatus(type, element) {
+        window.currentFilter = type;
+        $('.stat-card').removeClass('active');
+        $(element).addClass('active');
+        var label = $('#activeFilterLabel');
+        if(type === 'all') label.hide();
+        else { label.text('FILTERED VIEW: ' + type.toUpperCase()).fadeIn(); }
+        currentTable.draw();
+    }
+
+    function refreshData() {
+        $('body').addClass('is-loading');
+        $('#loader').fadeIn(200);
+        fetch('/api/refresh').then(r => r.json()).then(d => { location.reload(); })
+        .catch(e => { alert('Sync Error'); $('#loader').fadeOut(200); $('body').removeClass('is-loading'); });
+    }
+</script>
+</body>
+</html>

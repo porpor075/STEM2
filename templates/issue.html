@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEM++ | Issue Tracking</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0071e3;
+            --bg: #f5f5f7;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --success: #34c759;
+            --warning: #ff9500;
+            --danger: #ff3b30;
+            --border: rgba(0, 0, 0, 0.05);
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text-main); 
+            margin: 0; padding: 0; 
+            -webkit-font-smoothing: antialiased; 
+        }
+
+        /* Navigation Bar */
+        .nav-bar {
+            position: sticky; top: 0; z-index: 1000;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px; height: 52px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .nav-logo img { height: 24px; }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-main); font-size: 13px; font-weight: 500; opacity: 0.8; transition: 0.2s; }
+        .nav-links a:hover { opacity: 1; color: var(--primary); }
+
+        .container { max-width: 90%; margin: 40px auto; }
+        h2 { font-size: 32px; font-weight: 700; letter-spacing: -1.2px; margin-bottom: 32px; }
+
+        /* Stats Cards */
+        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 40px; }
+        .stat-card {
+            background: white; padding: 32px; border-radius: 24px;
+            border: 1px solid var(--border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+        .stat-card h4 { margin: 0; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .stat-card .number { font-size: 48px; font-weight: 700; margin: 12px 0; color: var(--text-main); letter-spacing: -2px; }
+        
+        /* Table Section */
+        .section { 
+            background: var(--card-bg); border-radius: 24px; 
+            padding: 32px; border: 1px solid var(--border);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+            backdrop-filter: blur(10px);
+        }
+        h3 { font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 24px; letter-spacing: -0.4px; }
+
+        /* Modern Table */
+        table.dataTable { border: none !important; border-collapse: separate !important; border-spacing: 0 8px !important; }
+        table.dataTable thead th { background: transparent !important; color: var(--text-secondary) !important; font-size: 11px; font-weight: 600; text-transform: uppercase; padding: 12px !important; border: none !important; }
+        table.dataTable tbody tr { background-color: rgba(255,255,255,0.5) !important; transition: all 0.2s; border-radius: 12px; }
+        table.dataTable tbody tr:hover { transform: scale(1.002); box-shadow: 0 4px 12px rgba(0,0,0,0.05); background-color: white !important; }
+        table.dataTable tbody td { padding: 14px !important; border: none !important; font-size: 13px; }
+        table.dataTable tbody td:first-child { border-top-left-radius: 12px; border-bottom-left-radius: 12px; font-weight: 600; }
+        table.dataTable tbody td:last-child { border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+
+        .tag { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .tag-user { background: #e1f5fe; color: #01579b; }
+        .tag-admin { background: #fff3e0; color: #e65100; }
+        .tag-cat { background: #f0f0f2; color: #3a3a3c; }
+        .tag-access { background: #ffebee; color: #c62828; }
+        .tag-learning { background: #e8f5e9; color: #2e7d32; }
+        .tag-video { background: #e3f2fd; color: #1565c0; }
+        .tag-cert { background: #f3e5f5; color: #7b1fa2; }
+        .tag-tech { background: #fffde7; color: #f9a825; }
+
+        /* Chart Section */
+        .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px; }
+        @media (max-width: 1024px) { .chart-grid { grid-template-columns: 1fr; } }
+
+        .chart-section {
+            background: white; border-radius: 24px; padding: 32px;
+            border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .view-tabs { display: flex; gap: 8px; background: #f0f0f2; padding: 4px; border-radius: 12px; }
+        .view-btn { border: none; background: transparent; padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary); transition: 0.2s; }
+        .view-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        /* Summary Table */
+        .summary-table { width: 100%; margin-top: 24px; border-collapse: collapse; font-size: 13px; }
+        .summary-table th { text-align: left; color: var(--text-secondary); font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .summary-table td { padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.03); }
+        .summary-table .count { font-weight: 700; color: var(--text-main); text-align: right; }
+        .summary-table .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+<nav class="nav-bar">
+    <div class="nav-logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+        <span>STEM++</span>
+    </div>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/issue">Issue Tracking</a>
+        <a href="/report">Database Explorer</a>
+        <a href="/calling-list">Calling List</a>
+        <a href="/logout" style="color: #ff3b30;">Sign Out</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h2>Issue Tracking</h2>
+
+    <div class="stats-container">
+        <div class="stat-card">
+            <h4>Total Issues</h4>
+            <div class="number" style="color: var(--primary);">{{ total }}</div>
+            <p style="margin:0; font-size:11px; opacity:0.6;">Issues with valid Received Date</p>
+        </div>
+        <div class="stat-card">
+            <h4>User Issues</h4>
+            <div class="number" style="color: #0288d1;">{{ user_count }}</div>
+            <p style="margin:0; font-size:11px; opacity:0.6;">Reporter Type: User</p>
+        </div>
+        <div class="stat-card">
+            <h4>Admin Issues</h4>
+            <div class="number" style="color: #f57c00;">{{ admin_count }}</div>
+            <p style="margin:0; font-size:11px; opacity:0.6;">Reporter Type: Admin</p>
+        </div>
+        {% if other_count > 0 %}
+        <div class="stat-card">
+            <h4>Other Issues</h4>
+            <div class="number" style="color: var(--text-secondary);">{{ other_count }}</div>
+            <p style="margin:0; font-size:11px; opacity:0.6;">Uncategorized Reporters</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="chart-grid">
+        <div class="chart-section">
+            <div class="chart-header">
+                <h3>Issue Incident Trends</h3>
+                <div class="view-tabs">
+                    <button class="view-btn active" onclick="switchView('daily', this)">Daily</button>
+                    <button class="view-btn" onclick="switchView('weekly', this)">Weekly</button>
+                    <button class="view-btn" onclick="switchView('monthly', this)">Monthly</button>
+                </div>
+            </div>
+            <div style="height: 300px;">
+                <canvas id="issueTimelineChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <div class="chart-header">
+                <h3>Category Distribution</h3>
+            </div>
+            <div style="height: 200px;">
+                <canvas id="categoryPieChart"></canvas>
+            </div>
+            <table class="summary-table">
+                <thead>
+                    <tr><th>Category</th><th style="text-align:right;">Count</th></tr>
+                </thead>
+                <tbody>
+                    {% set colors = ['#ff3b30', '#34c759', '#0071e3', '#af52de', '#ff9500', '#8e8e93'] %}
+                    {% for item in category_summary %}
+                    <tr>
+                        <td><span class="dot" style="background: {{ colors[loop.index0 % colors|length] }}"></span>{{ item.name }}</td>
+                        <td class="count">{{ item.count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>All Recorded Issues</h3>
+        <table id="issueTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for issue in issues %}
+                <tr>
+                    {% for col in columns %}
+                    <td>
+                        {% if col == 'Reporter Type (ประเภทผู้แจ้ง)' %}
+                            {% if 'User' in issue[col] %}
+                                <span class="tag tag-user">{{ issue[col] }}</span>
+                            {% elif 'Admin' in issue[col] %}
+                                <span class="tag tag-admin">{{ issue[col] }}</span>
+                            {% else %}
+                                {{ issue[col] }}
+                            {% endif %}
+                        {% elif col == 'Category' %}
+                            {% set cat_class = '' %}
+                            {% if issue[col] == 'Access & Login' %}{% set cat_class = 'tag-access' %}
+                            {% elif issue[col] == 'Learning & Progress' %}{% set cat_class = 'tag-learning' %}
+                            {% elif issue[col] == 'Video & Content' %}{% set cat_class = 'tag-video' %}
+                            {% elif issue[col] == 'Certificate' %}{% set cat_class = 'tag-cert' %}
+                            {% elif issue[col] == 'Technical & Account' %}{% set cat_class = 'tag-tech' %}
+                            {% endif %}
+                            <span class="tag tag-cat {{ cat_class }}">{{ issue[col] }}</span>
+                        {% else %}
+                            {{ issue[col] }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+    const chartRawData = {{ chart_data|tojson }};
+    const categoryRawData = {{ category_data|tojson }};
+    let timelineChart, pieChart;
+function renderPieChart() {
+    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+    pieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categoryRawData.labels,
+            datasets: [{
+                data: categoryRawData.values,
+                backgroundColor: [
+                    '#ff3b30', '#34c759', '#0071e3', '#af52de', '#ff9500', '#8e8e93'
+                ],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+...
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        titleColor: '#1d1d1f',
+                        bodyColor: '#1d1d1f',
+                        borderColor: '#e5e5e5',
+                        borderWidth: 1,
+                        padding: 12
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+    }
+
+    function renderChart(view) {
+        const ctx = document.getElementById('issueTimelineChart').getContext('2d');
+        const data = chartRawData[view];
+
+        if (timelineChart) {
+            timelineChart.destroy();
+        }
+
+        timelineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'New Issues',
+                    data: data.values,
+                    borderColor: '#0071e3',
+                    backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#0071e3',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        titleColor: '#1d1d1f',
+                        bodyColor: '#1d1d1f',
+                        borderColor: '#e5e5e5',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, color: '#86868b' },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                    },
+                    x: {
+                        ticks: { color: '#86868b' },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function switchView(view, btn) {
+        $('.view-btn').removeClass('active');
+        $(btn).addClass('active');
+        renderChart(view);
+    }
+
+    $(document).ready(function() {
+        $('#issueTable').DataTable({
+            pageLength: 25,
+            order: [[1, 'desc']],
+            dom: 'Bfrtip',
+            scrollX: true
+        });
+
+        renderChart('daily');
+        renderPieChart();
+    });
+</script>
+</body>
+</html>
