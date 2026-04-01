@@ -184,7 +184,7 @@ def get_report_data():
 def get_gas_calling_list():
     global _cached_gas_df, _cached_gas_time
     if _cached_gas_df is not None and _cached_gas_time is not None:
-        if (datetime.now() - _cached_gas_time).total_seconds() < 60: # ลด Cache เหลือ 1 นาทีสำหรับข้อมูลการโทร
+        if (datetime.now() - _cached_gas_time).total_seconds() < 10: # ลดเหลือ 10 วินาทีเพื่อให้ดู sync ไวขึ้น
             return _cached_gas_df
     df_calling = pd.DataFrame()
     try:
