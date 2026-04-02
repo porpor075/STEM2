@@ -10,9 +10,12 @@ import traceback
 import math
 from datetime import datetime
 
+# Get the directory where app.py is located
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 app = Flask(__name__, 
-            static_folder="../static", 
-            template_folder="../templates")
+            static_folder=os.path.join(basedir, "../static"), 
+            template_folder=os.path.join(basedir, "../templates"))
 Compress(app) # Enable Gzip compression
 application = app # Add this for Vercel WSGI entry point
 app.secret_key = "conicle_secret_key_for_session"
