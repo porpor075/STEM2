@@ -13,8 +13,10 @@ function doPost(e) {
 
   var action = data.action;
   var sheetName = "Calling List"; 
+  var archiveSheetName = "Archive";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
+  var archiveSheet = ss.getSheetByName(archiveSheetName);
   
   // Headers: Email(1), First Name(2), Last Name(3), Phone(4), Status(5), Timestamp(6), By User(7), Learning Status(8), Density(9), Customer Type(10), Note(11), Progress(12)
   var headers = ["Email", "First Name", "Last Name", "Phone", "Status", "Timestamp", "By User", "Learning Status", "Density", "Customer Type", "Note", "Progress"];
@@ -25,8 +27,49 @@ function doPost(e) {
     sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#f3f3f3");
     sheet.setFrozenRows(1);
   }
+  
+  if (!archiveSheet) {
+    archiveSheet = ss.insertSheet(archiveSheetName);
+    archiveSheet.appendRow(headers);
+    archiveSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0e0e0");
+    archiveSheet.setFrozenRows(1);
+  }
 
   if (action === "batchAddUsers") {
+    // ... existing batchAddUsers code ...
+  } 
+  
+  else if (action === "archiveOldData") {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return jsonResponse({ "status": "success", "message": "No data to archive" });
+    
+    var dataRange = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    var rowsToKeep = [];
+    var rowsToArchive = [];
+    
+    dataRange.forEach(function(row) {
+      var status = row[4]; // Status is at index 4
+      if (status === "Completed" || status === "Reject" || status === "Blacklist") {
+        rowsToArchive.push(row);
+      } else {
+        rowsToKeep.push(row);
+      }
+    });
+    
+    if (rowsToArchive.length > 0) {
+      archiveSheet.getRange(archiveSheet.getLastRow() + 1, 1, rowsToArchive.length, headers.length).setValues(rowsToArchive);
+      
+      // Clear and re-write the main sheet to keep it lean
+      sheet.getRange(2, 1, sheet.getMaxRows() - 1, headers.length).clearContent();
+      if (rowsToKeep.length > 0) {
+        sheet.getRange(2, 1, rowsToKeep.length, headers.length).setValues(rowsToKeep);
+      }
+    }
+    
+    return jsonResponse({ "status": "success", "message": "Archived " + rowsToArchive.length + " rows" });
+  }
+
+  else if (action === "logCall") {
     var users = data.users;
     var lastRow = sheet.getLastRow();
     var emailToRow = {};

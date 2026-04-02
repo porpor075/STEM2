@@ -7,6 +7,7 @@ import requests
 from functools import wraps
 import sys
 import traceback
+import math
 from datetime import datetime
 
 app = Flask(__name__, 
@@ -522,7 +523,8 @@ def index():
     try:
         df = get_report_data()
         if df is None: return "Report not found."
-        resp = make_response(render_template('index.html', columns=df.columns.tolist(), data=df.fillna('-').to_dict(orient='records')))
+        # Just send columns, let JS fetch the data
+        resp = make_response(render_template('index.html', columns=df.columns.tolist(), data=[]))
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
     except Exception as e: return f"Explorer Error: {e}", 500
@@ -547,6 +549,40 @@ def logout():
 def refresh_data():
     if refresh_logic(): return jsonify({"status": "success"})
     return jsonify({"status": "error"}), 500
+
+@app.route('/api/report-data')
+@login_required
+def get_report_data_api():
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 100))
+        search = request.args.get('search', '').lower()
+        
+        df = get_report_data()
+        if df.empty:
+            return jsonify({"data": [], "total_pages": 0, "current_page": page, "total_records": 0})
+            
+        # Apply search if provided
+        if search:
+            mask = df.apply(lambda x: x.astype(str).str.lower().str.contains(search).any(), axis=1)
+            df = df[mask]
+            
+        total = len(df)
+        total_pages = math.ceil(total / per_page)
+        
+        start = (page - 1) * per_page
+        end = start + per_page
+        paged_data = df.iloc[start:end].fillna('-').to_dict(orient='records')
+        
+        return jsonify({
+            "data": paged_data,
+            "total_pages": total_pages,
+            "current_page": page,
+            "total_records": total,
+            "columns": df.columns.tolist()
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/calling-list')
 @login_required

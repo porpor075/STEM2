@@ -92,42 +92,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for row in data %}
-                <tr>
-                    {% for col in columns %}
-                    {% if col != 'User_Status_Category' %}
-                    <td>
-                        {% if col == 'date_joined' %}
-                            {% if row[col] != '-' and row[col] != '' %}
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="checkbox" checked disabled style="accent-color: var(--success); width: 16px; height: 16px;">
-                                    <span style="font-weight: 600; color: var(--success); font-size: 12px;">{{ row[col] }}</span>
-                                </div>
-                            {% else %}
-                                <input type="checkbox" disabled style="opacity: 0.3; width: 16px; height: 16px;">
-                            {% endif %}
-                        {% elif col == 'Learning Status' %}
-                            <span style="font-weight: 700; color: {% if row[col] == 'Completed' %}var(--success){% elif row[col] == 'In Progress' %}var(--primary){% else %}var(--text-secondary){% endif %};">
-                                {{ row[col] }}
-                            </span>
-                        {% elif col in ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'Completed Date', 'Added Date', 'Start Date'] %}
-                             <span style="white-space: nowrap;">{{ row[col] }}</span>
-                        {% else %}
-                            {# Default treat as Date Progress column #}
-                            {% if row[col] != '-' and row[col] != '' %}
-                                <div class="cell-progress-wrapper">
-                                    <div class="cell-value">{{ row[col] }}%</div>
-                                    <div class="cell-progress-container">
-                                        <div class="cell-progress-fill" style="width: {{ row[col] }}%; background: {% if row[col]|float >= 100 %}var(--success){% else %}var(--primary){% endif %};"></div>
-                                    </div>
-                                </div>
-                            {% else %}<span style="color: #dadce0;">-</span>{% endif %}
-                        {% endif %}
-                    </td>
-                    {% endif %}
-                    {% endfor %}
-                </tr>
-                {% endfor %}
+                <!-- Loaded via AJAX -->
             </tbody>
         </table>
     </div>
@@ -137,37 +102,69 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
     $(document).ready(function() {
-        var table = $('#reportTable').DataTable({
-            scrollX: true, 
-            pageLength: 25, 
-            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-            order: [[0, 'asc']], 
-            dom: '<"top"lfB>rtip',
-            initComplete: function () {
-                // Find Learning Status column index dynamically
-                var learningStatusIdx = -1;
-                this.api().columns().every(function () {
-                    var title = $(this.header()).text().trim();
-                    if (title === 'Learning Status') {
-                        learningStatusIdx = this.index();
+        var columns = {{ columns | tojson }};
+        var colDefs = [];
+        columns.forEach(function(col, idx) {
+            if (col === 'User_Status_Category') return;
+            colDefs.push({
+                data: col,
+                title: col,
+                render: function(data, type, row) {
+                    if (col === 'date_joined') {
+                        if (data !== '-' && data !== '') {
+                            return `<div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="checkbox" checked disabled style="accent-color: var(--success); width: 16px; height: 16px;">
+                                        <span style="font-weight: 600; color: var(--success); font-size: 12px;">${data}</span>
+                                    </div>`;
+                        }
+                        return `<input type="checkbox" disabled style="opacity: 0.3; width: 16px; height: 16px;">`;
                     }
-                });
-
-                if (learningStatusIdx !== -1) {
-                    this.api().columns([learningStatusIdx]).every( function () {
-                        var column = this;
-                        var select = $('<select class="status-filter"><option value="">All Statuses</option></select>')
-                            .appendTo( $('.nav-links') )
-                            .on( 'change', function () {
-                                var val = $.fn.dataTable.util.escapeRegex($(this).val());
-                                column.search( val ? '^'+val+'$' : '', true, false ).draw();
-                            } );
-                        column.data().unique().sort().each( function ( d, j ) {
-                            if(d !== '-' && d !== '') select.append( '<option value="'+d+'">'+d+'</option>' )
-                        } );
-                    } );
+                    if (col === 'Learning Status') {
+                        var color = data === 'Completed' ? 'var(--success)' : (data === 'In Progress' ? 'var(--primary)' : 'var(--text-secondary)');
+                        return `<span style="font-weight: 700; color: ${color};">${data}</span>`;
+                    }
+                    if (['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'Completed Date', 'Added Date', 'Start Date'].includes(col)) {
+                        return `<span style="white-space: nowrap;">${data}</span>`;
+                    }
+                    // Progress columns
+                    if (data !== '-' && data !== '') {
+                        var val = parseFloat(data) || 0;
+                        var color = val >= 100 ? 'var(--success)' : 'var(--primary)';
+                        return `<div class="cell-progress-wrapper">
+                                    <div class="cell-value">${data}%</div>
+                                    <div class="cell-progress-container">
+                                        <div class="cell-progress-fill" style="width: ${data}%; background: ${color};"></div>
+                                    </div>
+                                </div>`;
+                    }
+                    return `<span style="color: #dadce0;">-</span>`;
                 }
-            }
+            });
+        });
+
+        var table = $('#reportTable').DataTable({
+            scrollX: true,
+            processing: true,
+            serverSide: true,
+            pageLength: 50,
+            ajax: function(data, callback, settings) {
+                var page = (data.start / data.length) + 1;
+                var per_page = data.length;
+                var search = data.search.value;
+                
+                fetch(`/api/report-data?page=${page}&per_page=${per_page}&search=${search}`)
+                    .then(r => r.json())
+                    .then(res => {
+                        callback({
+                            draw: data.draw,
+                            recordsTotal: res.total_records,
+                            recordsFiltered: res.total_records,
+                            data: res.data
+                        });
+                    });
+            },
+            columns: colDefs,
+            dom: '<"top"lfB>rtip'
         });
         $('#main-container').addClass('is-ready');
         $('#loader').fadeOut(300);
