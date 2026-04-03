@@ -347,6 +347,7 @@ def summary():
         # --- REVENUE CALCULATION ---
         revenue_data = []
         grand_total_revenue = 0
+        revenue_error = None
         
         try:
             # 1. Fetch Price/Quota Data
@@ -354,8 +355,6 @@ def summary():
             price_resp = requests.get(price_url, timeout=15)
             if price_resp.status_code == 200:
                 price_df = pd.read_csv(io.StringIO(price_resp.text))
-                print(f"Price DF columns: {price_df.columns.tolist()}")
-                print(f"Price DF row count: {len(price_df)}")
                 
                 # 2. Pre-calculate STEM Completion Data
                 temp_c_stats = {}
@@ -365,12 +364,10 @@ def summary():
                     df_copy['Content Name'] = df_copy['Content Name'].astype(str).str.strip()
                     stem_compl_counts = df_copy[df_copy['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
                     temp_c_stats = stem_compl_counts
-                    print(f"STEM Completion keys (stripped): {list(temp_c_stats.keys())[:5]}")
                 
                 # Map Learndi Course Name -> Completed Count
                 learndi_compl = {}
                 if not learndi_df.empty:
-                    # Try to find 'Course' and 'Done' columns
                     l_cols = {c.strip(): c for c in learndi_df.columns}
                     c_col = l_cols.get('Course')
                     d_col = l_cols.get('Done')
@@ -380,7 +377,6 @@ def summary():
                             done_raw = str(row[d_col]).replace(',', '').strip()
                             done = pd.to_numeric(done_raw, errors='coerce') or 0
                             learndi_compl[cn] = done
-                        print(f"Learndi Completion keys: {list(learndi_compl.keys())[:5]}")
 
                 # 3. Calculate Revenue per Course
                 for _, p_row in price_df.iterrows():
@@ -399,7 +395,7 @@ def summary():
                     price_boi = safe_float(p_row.get('Price BOI'))
                     bonus_per_person = safe_float(p_row.get('Price / Content / Complete'))
                     
-                    # FLEXIBLE MATCHING: Sum all counts where Price Sheet course name is part of the System course name
+                    # FLEXIBLE MATCHING
                     stem_done = 0
                     for stem_course, count in temp_c_stats.items():
                         if course.lower() in stem_course.lower():
@@ -410,7 +406,6 @@ def summary():
                         if course.lower() in learndi_course.lower():
                             learndi_done += count
                     
-                    # Logic: STEM users priority for Quota
                     billable_stem = min(float(stem_done), quota)
                     remaining_quota = max(0.0, quota - billable_stem)
                     billable_learndi = min(float(learndi_done), remaining_quota)
@@ -432,11 +427,13 @@ def summary():
                         "Bonus_Revenue": bonus_rev,
                         "Total": total_course_rev
                     })
-                print(f"Calculated Revenue Data: {len(revenue_data)} courses processed.")
+                
+                if not revenue_data:
+                    revenue_error = "No matching courses found between Price Sheet and System."
             else:
-                print(f"Price sheet fetch failed: {price_resp.status_code}")
+                revenue_error = f"Google Sheets API Error: {price_resp.status_code}"
         except Exception as e:
-            print(f"Revenue calc error: {e}")
+            revenue_error = f"Internal Error: {str(e)}"
             traceback.print_exc()
 
         if df.empty or 'Email' not in df.columns:
@@ -456,7 +453,8 @@ def summary():
                                chart_labels=[], chart_values=[], daily_stats=[],
                                learndi_stats=learndi_stats,
                                revenue_data=revenue_data,
-                               grand_total_revenue=grand_total_revenue)
+                               grand_total_revenue=grand_total_revenue,
+                               revenue_error=revenue_error)
         
         meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category', 'Completed Date', 'Added Date', 'Start Date']
         date_cols = [c for c in df.columns if c not in meta]
@@ -639,7 +637,8 @@ def summary():
                                chart_labels=tier_order, chart_values=chart_values, daily_stats=daily_stats_list,
                                learndi_stats=learndi_stats,
                                revenue_data=revenue_data,
-                               grand_total_revenue=grand_total_revenue))
+                               grand_total_revenue=grand_total_revenue,
+                               revenue_error=revenue_error))
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
     except Exception as e:
