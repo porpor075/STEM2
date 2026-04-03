@@ -242,7 +242,7 @@
                     <tr>
                         <td><strong>{{ item.Course }}</strong></td>
                         <td class="dt-center">{{ "{:,.0f}".format(item.Quota) }}</td>
-                        <td class="dt-center">{{ "{:,.0f}".format(item.Billable_STEM) }} <span style="font-size:10px; color:#aaa;">/ {{ "{:,.0f}".format(item.STEM_Done) }}</span></td>
+                        <td class="dt-center">{{ "{:,.0f}".format(item.Billable_STEM) }} <span style="font-size:10px; color:#aaa;">/ {{ "{:,.0f}".format(item.STEM_Done) }} / {{ "{:,.0f}".format(item.STEM_Total) }}</span></td>
                         <td class="dt-center">{{ "{:,.0f}".format(item.Billable_Learndi) }} <span style="font-size:10px; color:#aaa;">/ {{ "{:,.0f}".format(item.Learndi_Done) }}</span></td>
                         <td class="text-right">฿{{ "{:,.0f}".format(item.Price_BOI) }}</td>
                         <td class="text-right">฿{{ "{:,.0f}".format(item.Price_Base) }}</td>

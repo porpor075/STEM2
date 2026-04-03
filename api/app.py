@@ -357,14 +357,16 @@ def summary():
             if price_resp.status_code == 200:
                 price_df = pd.read_csv(io.StringIO(price_resp.text))
                 
-                # 2. Pre-calculate STEM Completion Data
+                # 2. Pre-calculate STEM Completion and Enrollment Data
                 temp_c_stats = {}
                 if not df.empty and 'Content Name' in df.columns:
-                    # Strip whitespace from Content Name column for accurate matching
                     df_copy = df.copy()
                     df_copy['Content Name'] = df_copy['Content Name'].astype(str).str.strip()
-                    stem_compl_counts = df_copy[df_copy['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
-                    temp_c_stats = stem_compl_counts
+                    stats_df = df_copy.groupby('Content Name').agg(
+                        Total=('Email', 'count'),
+                        Done=('Learning Status', lambda s: (s == 'Completed').sum())
+                    )
+                    temp_c_stats = stats_df.to_dict('index')
                 
                 # Map Learndi Course Name -> Completed Count
                 learndi_compl = {}
@@ -398,9 +400,11 @@ def summary():
                     
                     # FLEXIBLE MATCHING
                     stem_done = 0
-                    for stem_course, count in temp_c_stats.items():
+                    stem_total = 0
+                    for stem_course, stats in temp_c_stats.items():
                         if course.lower() in stem_course.lower():
-                            stem_done += count
+                            stem_done += stats['Done']
+                            stem_total += stats['Total']
                     
                     learndi_done = 0
                     for learndi_course, count in learndi_compl.items():
@@ -420,6 +424,7 @@ def summary():
                     revenue_data.append({
                         "Course": course,
                         "STEM_Done": int(stem_done),
+                        "STEM_Total": int(stem_total),
                         "Learndi_Done": int(learndi_done),
                         "Quota": int(quota),
                         "Billable_STEM": int(billable_stem),
