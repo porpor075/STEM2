@@ -253,6 +253,49 @@
         </table>
     </div>
 
+    <!-- New Learndi Section -->
+    <div class="section" id="learndi-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+            <h3 style="margin:0;">Learndi Graduation Overview</h3>
+            <span style="font-size:12px; color:var(--text-secondary); background: #f0f0f0; padding: 4px 12px; border-radius: 12px;">Source: Learndi Sheet</span>
+        </div>
+        <div class="table-wrapper" style="overflow-x:auto;">
+            <table id="learndiStatsTable" class="display compact" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Course Name</th>
+                        <th class="dt-center">Total Learners</th>
+                        <th class="dt-center">Completed</th>
+                        <th class="dt-center">In Progress</th>
+                        <th>Completion Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in learndi_stats %}
+                    {% set total_val = item['Total Learner']|float if item['Total Learner'] != '-' else 0 %}
+                    {% set done_val = item['Done']|float if item['Done'] != '-' else 0 %}
+                    {% set learning_val = item['Learning']|float if item['Learning'] != '-' else 0 %}
+                    {% set rate = (done_val / total_val * 100)|round(1) if total_val > 0 else 0 %}
+                    <tr>
+                        <td><strong>{{ item['Course'] }}</strong></td>
+                        <td class="dt-center">{{ item['Total Learner'] }}</td>
+                        <td class="dt-center"><span style="color:var(--success); font-weight:700;">{{ item['Done'] }}</span></td>
+                        <td class="dt-center"><span style="color:var(--warning); font-weight:700;">{{ item['Learning'] }}</span></td>
+                        <td>
+                            <div class="course-progress-wrapper">
+                                <span style="min-width: 35px; font-weight:700; font-size: 11px;">{{ rate }}%</span>
+                                <div class="course-progress-container">
+                                    <div class="progress-bar-fill" style="width: {{ rate }}%; background: var(--primary);"></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="section">
         <div class="chart-header">
             <h3>Daily Completion Trend</h3>
@@ -870,6 +913,10 @@
                     $(ids[colIdx-2]).html(total.toLocaleString());
                 });
             }
+        });
+
+        $('#learndiStatsTable').DataTable({
+            paging: false, dom: 't', order: [[1, 'desc']]
         });
 
         $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {

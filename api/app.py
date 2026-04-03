@@ -37,6 +37,7 @@ CALLING_LIST_URL = "https://docs.google.com/spreadsheets/d/18YTiZ67OCVvTXltashgT
 ISSUE_SHEET_URL = "https://docs.google.com/spreadsheets/d/18YTiZ67OCVvTXltashgTPIvpH6u8e6GnAb986PctVOI/export?format=csv&gid=1570354642"
 FB_ADS_URL = "https://docs.google.com/spreadsheets/d/11aluJj_MKnEuTSuvkcY-LtWjMksNexKZU0lcM70A8u4/export?format=csv&gid=0"
 CAMPAIGN_REG_URL = "https://docs.google.com/spreadsheets/d/11aluJj_MKnEuTSuvkcY-LtWjMksNexKZU0lcM70A8u4/export?format=csv&gid=492892797"
+LEARNDI_SHEET_URL = "https://docs.google.com/spreadsheets/d/1UOPv0_BZ-ueqfK2Jjhs6AdvqFNiE1tiKcRVvTO-KMHE/export?format=csv&gid=459253712"
 
 # Paths
 REPORT_CSV = "/tmp/STEM_Learning_Report.csv"
@@ -47,6 +48,7 @@ CALLING_LIST_CSV = "/tmp/calling_list.csv"
 ISSUE_CSV = "/tmp/issue_list.csv"
 FB_ADS_CSV = "/tmp/fb_ads.csv"
 CAMPAIGN_REG_CSV = "/tmp/campaign_reg.csv"
+LEARNDI_CSV = "/tmp/learndi_report.csv"
 
 # Google Apps Script Web App URL
 GAS_URL = os.environ.get("GAS_URL", "https://script.google.com/macros/s/AKfycby0RE_RSrIeoyQxGDEMJKA1af-481o6xdJEOULTkmr9Pgxp40STd_3h8Q30BTfvjhwWrw/exec")
@@ -94,6 +96,26 @@ def load_user_access_data():
                 return df[['email', 'date_joined']].drop_duplicates('email')
     except Exception as e: print(f"User access load error: {e}")
     return pd.DataFrame(columns=['email', 'date_joined'])
+
+_cached_learndi_df = None
+_cached_learndi_time = None
+
+def get_learndi_data():
+    global _cached_learndi_df, _cached_learndi_time
+    if _cached_learndi_df is not None and _cached_learndi_time is not None:
+        if (datetime.now() - _cached_learndi_time).total_seconds() < _cache_expiry:
+            return _cached_learndi_df
+    try:
+        resp = requests.get(LEARNDI_SHEET_URL, timeout=15)
+        if resp.status_code == 200:
+            with open(LEARNDI_CSV, 'wb') as f: f.write(resp.content)
+            df = pd.read_csv(LEARNDI_CSV)
+            _cached_learndi_df = df
+            _cached_learndi_time = datetime.now()
+            return df
+    except Exception as e:
+        print(f"Error fetching Learndi data: {e}")
+    return pd.DataFrame()
 
 def process_data():
     if not os.path.exists(REMOTE_CSV): return False
@@ -318,6 +340,9 @@ def summary():
         fb_df = get_fb_ads_data()
         # Fetch Campaign Registration data
         camp_df = get_campaign_reg_data()
+        # Fetch Learndi data
+        learndi_df = get_learndi_data()
+        learndi_stats = learndi_df.fillna('-').to_dict(orient='records') if not learndi_df.empty else []
         
         if df.empty or 'Email' not in df.columns:
             # Provide empty defaults to prevent template errors
@@ -333,7 +358,8 @@ def summary():
                                fb_grad_data={"labels":[], "spend":[], "completions":[]},
                                fb_start_data={"labels":[], "starts":[], "reach":[], "impressions":[], "cpr":[], "added":[], "completions":[], "campaign":[]},
                                avg_days=0, median_days=0, mode_days=0, min_days=0, max_days=0,
-                               chart_labels=[], chart_values=[], daily_stats=[])
+                               chart_labels=[], chart_values=[], daily_stats=[],
+                               learndi_stats=learndi_stats)
         
         meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category', 'Completed Date', 'Added Date', 'Start Date']
         date_cols = [c for c in df.columns if c not in meta]
@@ -513,7 +539,8 @@ def summary():
                                fb_grad_data=fb_grad_comparison,
                                fb_start_data=fb_start_comparison,
                                avg_days=avg_days, median_days=median_days, mode_days=mode_days, min_days=min_days, max_days=max_days,
-                               chart_labels=tier_order, chart_values=chart_values, daily_stats=daily_stats_list))
+                               chart_labels=tier_order, chart_values=chart_values, daily_stats=daily_stats_list,
+                               learndi_stats=learndi_stats))
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
     except Exception as e:
