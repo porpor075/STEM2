@@ -292,6 +292,15 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr style="font-weight:700; background: rgba(0,0,0,0.03);">
+                        <td style="text-align:right;">SUM:</td>
+                        <td id="learndiSumTotal" class="dt-center"></td>
+                        <td id="learndiSumCompleted" class="dt-center"></td>
+                        <td id="learndiSumInProgress" class="dt-center"></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -916,7 +925,19 @@
         });
 
         $('#learndiStatsTable').DataTable({
-            paging: false, dom: 't', order: [[1, 'desc']]
+            paging: false, dom: 't', order: [[1, 'desc']],
+            footerCallback: function (row, data, start, end, display) {
+                var api = this.api();
+                [1, 2, 3].forEach(function(colIdx) {
+                    var total = api.column(colIdx).data().reduce(function(a, b){
+                        var cleanA = typeof a === 'string' ? a.replace(/<[^>]*>/g, '') : a;
+                        var cleanB = typeof b === 'string' ? b.replace(/<[^>]*>/g, '') : b;
+                        return (parseFloat(cleanA)||0) + (parseFloat(cleanB)||0);
+                    }, 0);
+                    var ids = ['#learndiSumTotal', '#learndiSumCompleted', '#learndiSumInProgress'];
+                    $(ids[colIdx-1]).html(total.toLocaleString());
+                });
+            }
         });
 
         $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
