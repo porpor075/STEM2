@@ -350,53 +350,55 @@ def summary():
         
         try:
             # 1. Fetch Price/Quota Data
-            price_resp = requests.get(f"https://docs.google.com/spreadsheets/d/1UOPv0_BZ-ueqfK2Jjhs6AdvqFNiE1tiKcRVvTO-KMHE/export?format=csv&gid=0&t={int(datetime.now().timestamp())}", timeout=10)
+            price_url = f"https://docs.google.com/spreadsheets/d/1UOPv0_BZ-ueqfK2Jjhs6AdvqFNiE1tiKcRVvTO-KMHE/export?format=csv&gid=0&t={int(datetime.now().timestamp())}"
+            price_resp = requests.get(price_url, timeout=15)
             if price_resp.status_code == 200:
                 price_df = pd.read_csv(io.StringIO(price_resp.text))
-                # Clean numeric columns
-                for col in ['Quota', 'Price BOI', 'Price / Content / Complete']:
-                    if col in price_df.columns:
-                        price_df[col] = pd.to_numeric(price_df[col].astype(str).str.replace(',', '').replace('nan', '0'), errors='coerce').fillna(0)
                 
-                # 2. Get STEM Completion Data (from c_stats calculation logic)
-                # Map STEM Course Name -> Completed Count
-                # (We'll use content_stats that will be calculated below, or calculate it now)
-                
-                # Pre-calculate content_stats for revenue
+                # 2. Pre-calculate STEM Completion Data
                 temp_c_stats = {}
-                for _, row in df.iterrows():
-                    cn = row['Content Name']
-                    if cn not in temp_c_stats: temp_c_stats[cn] = 0
-                    if row['Learning Status'] == 'Completed':
-                        temp_c_stats[cn] += 1
+                if not df.empty and 'Content Name' in df.columns:
+                    # Filter for Completed and group by Content Name
+                    stem_compl_counts = df[df['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
+                    temp_c_stats = stem_compl_counts
                 
                 # Map Learndi Course Name -> Completed Count
                 learndi_compl = {}
                 if not learndi_df.empty:
-                    for _, row in learndi_df.iterrows():
-                        cn = row['Course']
-                        done = pd.to_numeric(str(row['Done']).replace(',', ''), errors='coerce') or 0
-                        learndi_compl[cn] = done
+                    # Try to find 'Course' and 'Done' columns
+                    l_cols = {c.strip(): c for c in learndi_df.columns}
+                    c_col = l_cols.get('Course')
+                    d_col = l_cols.get('Done')
+                    if c_col and d_col:
+                        for _, row in learndi_df.iterrows():
+                            cn = str(row[c_col]).strip()
+                            done_raw = str(row[d_col]).replace(',', '').strip()
+                            done = pd.to_numeric(done_raw, errors='coerce') or 0
+                            learndi_compl[cn] = done
 
                 # 3. Calculate Revenue per Course
                 for _, p_row in price_df.iterrows():
-                    course = p_row['Course']
-                    quota = p_row['Quota']
-                    price_boi = p_row['Price BOI']
-                    bonus_per_person = p_row.get('Price / Content / Complete', 0)
+                    course = str(p_row.get('Course', '')).strip()
+                    if not course or course == 'nan': continue
+                    
+                    quota = str(p_row.get('Quota', '0')).replace(',', '').strip()
+                    quota = float(pd.to_numeric(quota, errors='coerce') or 0)
+                    
+                    price_boi = str(p_row.get('Price BOI', '0')).replace(',', '').strip()
+                    price_boi = float(pd.to_numeric(price_boi, errors='coerce') or 0)
+                    
+                    bonus_per_person = str(p_row.get('Price / Content / Complete', '0')).replace(',', '').strip()
+                    bonus_per_person = float(pd.to_numeric(bonus_per_person, errors='coerce') or 0)
                     
                     stem_done = temp_c_stats.get(course, 0)
                     learndi_done = learndi_compl.get(course, 0)
                     
                     # Logic: STEM users priority for Quota
-                    billable_stem = min(stem_done, quota)
-                    remaining_quota = max(0, quota - billable_stem)
-                    billable_learndi = min(learndi_done, remaining_quota)
+                    billable_stem = min(float(stem_done), quota)
+                    remaining_quota = max(0.0, quota - billable_stem)
+                    billable_learndi = min(float(learndi_done), remaining_quota)
                     
-                    # Base Revenue: 20% of BOI (Only for STEM)
                     base_rev = billable_stem * (price_boi * 0.20)
-                    
-                    # Bonus Revenue: (STEM + Learndi) * Bonus
                     bonus_rev = (billable_stem + billable_learndi) * bonus_per_person
                     
                     total_course_rev = base_rev + bonus_rev
@@ -404,15 +406,17 @@ def summary():
                     
                     revenue_data.append({
                         "Course": course,
-                        "STEM_Done": stem_done,
-                        "Learndi_Done": learndi_done,
-                        "Quota": quota,
-                        "Billable_STEM": billable_stem,
-                        "Billable_Learndi": billable_learndi,
+                        "STEM_Done": int(stem_done),
+                        "Learndi_Done": int(learndi_done),
+                        "Quota": int(quota),
+                        "Billable_STEM": int(billable_stem),
+                        "Billable_Learndi": int(billable_learndi),
                         "Base_Revenue": base_rev,
                         "Bonus_Revenue": bonus_rev,
                         "Total": total_course_rev
                     })
+            else:
+                print(f"Price sheet fetch failed: {price_resp.status_code}")
         except Exception as e:
             print(f"Revenue calc error: {e}")
             traceback.print_exc()
