@@ -443,19 +443,6 @@
     </div>
 
     <div class="section">
-        <div class="chart-header">
-            <h3>Facebook Ads vs Daily Graduates</h3>
-            <div class="granularity-filters">
-                <button class="granularity-btn active" onclick="updateFBGradChart('daily', this)">Daily</button>
-                <button class="granularity-btn" onclick="updateFBGradChart('weekly', this)">Weekly</button>
-                <button class="granularity-btn" onclick="updateFBGradChart('monthly', this)">Monthly</button>
-            </div>
-        </div>
-        <div style="height: 400px;"><canvas id="fbGradChart"></canvas></div>
-        <div style="margin-top: 15px; font-size: 11px; color: var(--text-secondary);">* Compare amount spent on FB Ads (THB) against daily completions (Graduates).</div>
-    </div>
-
-    <div class="section">
         <h3>Latest Progress Distribution</h3>
         <div style="height: 350px;"><canvas id="densityChart"></canvas></div>
     </div>
@@ -528,16 +515,14 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
-    var completionChart, startChart, funnelChart, densityChart, learningSummaryChart, fbGradChart, fbStartChart;
-    
+    var completionChart, startChart, funnelChart, densityChart, learningSummaryChart, fbStartChart;
+
     // Raw Data storage
     const rawCompletionData = {{ daily_completion_data|tojson }};
     const rawStartData = {{ daily_start_data|tojson }};
     const rawFunnelData = {{ comparison_data|tojson }};
     const rawLearningSummaryData = {{ learning_comparison_data|tojson }};
-    const rawFBGradData = {{ fb_grad_data|tojson }};
     const rawFBStartData = {{ fb_start_data|tojson }};
-
     function getWeek(date) {
         const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
         const dayNum = d.getUTCDay() || 7;
@@ -922,62 +907,6 @@
             }
         });
 
-        // Initialize FB Ads vs Graduates Chart
-        const fbgCtx = document.getElementById('fbGradChart').getContext('2d');
-        fbGradChart = new Chart(fbgCtx, {
-            type: 'line',
-            data: {
-                labels: rawFBGradData.labels,
-                datasets: [
-                    {
-                        label: 'FB Spend (THB)',
-                        data: rawFBGradData.spend,
-                        borderColor: '#ff3b30',
-                        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-                        borderWidth: 2,
-                        pointRadius: (context) => context.raw === 0 ? 0 : 3,
-                        pointHitRadius: 10,
-                        yAxisID: 'y1',
-                        tension: 0.3,
-                        fill: true
-                    },
-                    {
-                        label: 'Daily Graduates',
-                        data: rawFBGradData.completions,
-                        borderColor: '#34c759',
-                        backgroundColor: 'transparent',
-                        borderWidth: 3,
-                        pointRadius: (context) => context.raw === 0 ? 0 : 4,
-                        pointHitRadius: 10,
-                        yAxisID: 'y',
-                        tension: 0.3
-                    }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: { mode: 'index', intersect: false }
-                },
-                scales: {
-                    y: {
-                        type: 'linear', display: true, position: 'left',
-                        title: { display: true, text: 'Graduates (Count)' },
-                        grid: { color: 'rgba(0,0,0,0.03)' },
-                        beginAtZero: true
-                    },
-                    y1: {
-                        type: 'linear', display: true, position: 'right',
-                        title: { display: true, text: 'Spend (THB)' },
-                        grid: { drawOnChartArea: false },
-                        beginAtZero: true
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-
         currentTable = $('#allUsersTable').DataTable({ pageLength: 15, order: [[3, 'desc']], dom: 'ftip' });
         $('#dailyStatsTable').DataTable({ pageLength: 10, order: [[0, 'desc']], dom: 'ftip', columnDefs: [{ className: "dt-center", targets: "_all" }] });
         $('#contentStatsTable').DataTable({
@@ -1096,20 +1025,6 @@
             ds.data = agg.datasets[i].data;
         });
         learningSummaryChart.update();
-    }
-
-    function updateFBGradChart(mode, btn) {
-        $(btn).siblings().removeClass('active');
-        $(btn).addClass('active');
-        const datasets = [
-            {label: 'FB Spend (THB)', data: rawFBGradData.spend},
-            {label: 'Daily Graduates', data: rawFBGradData.completions}
-        ];
-        const agg = aggregateData(rawFBGradData.labels, datasets, mode);
-        fbGradChart.data.labels = agg.labels;
-        fbGradChart.data.datasets[0].data = agg.datasets[0].data;
-        fbGradChart.data.datasets[1].data = agg.datasets[1].data;
-        fbGradChart.update();
     }
 
     function filterByStatus(type, element) {
