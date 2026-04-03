@@ -348,6 +348,7 @@ def summary():
         # --- REVENUE CALCULATION ---
         revenue_data = []
         grand_total_revenue = 0
+        grand_total_revenue_50 = 0
         revenue_error = None
         
         try:
@@ -420,6 +421,11 @@ def summary():
                     
                     total_course_rev = base_rev + bonus_rev
                     grand_total_revenue += total_course_rev
+
+                    # 50% Logic: Halve base revenue, keep bonus full
+                    base_rev_50 = base_rev * 0.5
+                    total_course_rev_50 = base_rev_50 + bonus_rev
+                    grand_total_revenue_50 += total_course_rev_50
                     
                     revenue_data.append({
                         "Course": course,
@@ -432,8 +438,10 @@ def summary():
                         "Price_BOI": price_boi,
                         "Price_Base": price_boi * 0.20,
                         "Base_Revenue": base_rev,
+                        "Base_Revenue_50": base_rev_50,
                         "Bonus_Revenue": bonus_rev,
-                        "Total": total_course_rev
+                        "Total": total_course_rev,
+                        "Total_50": total_course_rev_50
                     })
                 
                 if not revenue_data:
@@ -462,6 +470,7 @@ def summary():
                                learndi_stats=learndi_stats,
                                revenue_data=revenue_data,
                                grand_total_revenue=grand_total_revenue,
+                               grand_total_revenue_50=grand_total_revenue_50,
                                revenue_error=revenue_error)
         
         meta = ['Email', 'First Name', 'Last Name', 'Content Name', 'Content Provider', 'date_joined', 'Learning Status', 'User_Status_Category', 'Completed Date', 'Added Date', 'Start Date']
@@ -646,6 +655,7 @@ def summary():
                                learndi_stats=learndi_stats,
                                revenue_data=revenue_data,
                                grand_total_revenue=grand_total_revenue,
+                               grand_total_revenue_50=grand_total_revenue_50,
                                revenue_error=revenue_error))
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
