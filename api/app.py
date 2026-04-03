@@ -354,6 +354,8 @@ def summary():
             price_resp = requests.get(price_url, timeout=15)
             if price_resp.status_code == 200:
                 price_df = pd.read_csv(io.StringIO(price_resp.text))
+                print(f"Price DF columns: {price_df.columns.tolist()}")
+                print(f"Price DF row count: {len(price_df)}")
                 
                 # 2. Pre-calculate STEM Completion Data
                 temp_c_stats = {}
@@ -361,6 +363,7 @@ def summary():
                     # Filter for Completed and group by Content Name
                     stem_compl_counts = df[df['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
                     temp_c_stats = stem_compl_counts
+                    print(f"STEM Completion keys: {list(temp_c_stats.keys())[:5]}")
                 
                 # Map Learndi Course Name -> Completed Count
                 learndi_compl = {}
@@ -375,6 +378,7 @@ def summary():
                             done_raw = str(row[d_col]).replace(',', '').strip()
                             done = pd.to_numeric(done_raw, errors='coerce') or 0
                             learndi_compl[cn] = done
+                        print(f"Learndi Completion keys: {list(learndi_compl.keys())[:5]}")
 
                 # 3. Calculate Revenue per Course
                 for _, p_row in price_df.iterrows():
@@ -415,6 +419,7 @@ def summary():
                         "Bonus_Revenue": bonus_rev,
                         "Total": total_course_rev
                     })
+                print(f"Calculated Revenue Data length: {len(revenue_data)}")
             else:
                 print(f"Price sheet fetch failed: {price_resp.status_code}")
         except Exception as e:
