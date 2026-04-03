@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import requests
+import io
 from functools import wraps
 import sys
 import traceback
