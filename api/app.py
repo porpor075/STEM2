@@ -399,13 +399,21 @@ def summary():
                     price_boi = safe_float(p_row.get('Price BOI'))
                     bonus_per_person = safe_float(p_row.get('Price / Content / Complete'))
                     
-                    stem_done = float(temp_c_stats.get(course, 0))
-                    learndi_done = float(learndi_compl.get(course, 0))
+                    # FLEXIBLE MATCHING: Sum all counts where Price Sheet course name is part of the System course name
+                    stem_done = 0
+                    for stem_course, count in temp_c_stats.items():
+                        if course.lower() in stem_course.lower():
+                            stem_done += count
+                    
+                    learndi_done = 0
+                    for learndi_course, count in learndi_compl.items():
+                        if course.lower() in learndi_course.lower():
+                            learndi_done += count
                     
                     # Logic: STEM users priority for Quota
-                    billable_stem = min(stem_done, quota)
+                    billable_stem = min(float(stem_done), quota)
                     remaining_quota = max(0.0, quota - billable_stem)
-                    billable_learndi = min(learndi_done, remaining_quota)
+                    billable_learndi = min(float(learndi_done), remaining_quota)
                     
                     base_rev = billable_stem * (price_boi * 0.20)
                     bonus_rev = (billable_stem + billable_learndi) * bonus_per_person
