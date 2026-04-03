@@ -424,6 +424,8 @@ def summary():
                         "Quota": int(quota),
                         "Billable_STEM": int(billable_stem),
                         "Billable_Learndi": int(billable_learndi),
+                        "Price_BOI": price_boi,
+                        "Price_Base": price_boi * 0.20,
                         "Base_Revenue": base_rev,
                         "Bonus_Revenue": bonus_rev,
                         "Total": total_course_rev
