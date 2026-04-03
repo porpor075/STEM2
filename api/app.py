@@ -360,10 +360,12 @@ def summary():
                 # 2. Pre-calculate STEM Completion Data
                 temp_c_stats = {}
                 if not df.empty and 'Content Name' in df.columns:
-                    # Filter for Completed and group by Content Name
-                    stem_compl_counts = df[df['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
+                    # Strip whitespace from Content Name column for accurate matching
+                    df_copy = df.copy()
+                    df_copy['Content Name'] = df_copy['Content Name'].astype(str).str.strip()
+                    stem_compl_counts = df_copy[df_copy['Learning Status'] == 'Completed']['Content Name'].value_counts().to_dict()
                     temp_c_stats = stem_compl_counts
-                    print(f"STEM Completion keys: {list(temp_c_stats.keys())[:5]}")
+                    print(f"STEM Completion keys (stripped): {list(temp_c_stats.keys())[:5]}")
                 
                 # Map Learndi Course Name -> Completed Count
                 learndi_compl = {}
@@ -383,24 +385,27 @@ def summary():
                 # 3. Calculate Revenue per Course
                 for _, p_row in price_df.iterrows():
                     course = str(p_row.get('Course', '')).strip()
-                    if not course or course == 'nan': continue
+                    if not course or course.lower() == 'nan' or course == 'Course': continue
                     
-                    quota = str(p_row.get('Quota', '0')).replace(',', '').strip()
-                    quota = float(pd.to_numeric(quota, errors='coerce') or 0)
+                    def safe_float(val):
+                        if pd.isna(val): return 0.0
+                        try:
+                            s = str(val).replace(',', '').strip()
+                            if not s or s.lower() == 'nan': return 0.0
+                            return float(s)
+                        except: return 0.0
+
+                    quota = safe_float(p_row.get('Quota'))
+                    price_boi = safe_float(p_row.get('Price BOI'))
+                    bonus_per_person = safe_float(p_row.get('Price / Content / Complete'))
                     
-                    price_boi = str(p_row.get('Price BOI', '0')).replace(',', '').strip()
-                    price_boi = float(pd.to_numeric(price_boi, errors='coerce') or 0)
-                    
-                    bonus_per_person = str(p_row.get('Price / Content / Complete', '0')).replace(',', '').strip()
-                    bonus_per_person = float(pd.to_numeric(bonus_per_person, errors='coerce') or 0)
-                    
-                    stem_done = temp_c_stats.get(course, 0)
-                    learndi_done = learndi_compl.get(course, 0)
+                    stem_done = float(temp_c_stats.get(course, 0))
+                    learndi_done = float(learndi_compl.get(course, 0))
                     
                     # Logic: STEM users priority for Quota
-                    billable_stem = min(float(stem_done), quota)
+                    billable_stem = min(stem_done, quota)
                     remaining_quota = max(0.0, quota - billable_stem)
-                    billable_learndi = min(float(learndi_done), remaining_quota)
+                    billable_learndi = min(learndi_done, remaining_quota)
                     
                     base_rev = billable_stem * (price_boi * 0.20)
                     bonus_rev = (billable_stem + billable_learndi) * bonus_per_person
@@ -419,7 +424,7 @@ def summary():
                         "Bonus_Revenue": bonus_rev,
                         "Total": total_course_rev
                     })
-                print(f"Calculated Revenue Data length: {len(revenue_data)}")
+                print(f"Calculated Revenue Data: {len(revenue_data)} courses processed.")
             else:
                 print(f"Price sheet fetch failed: {price_resp.status_code}")
         except Exception as e:
