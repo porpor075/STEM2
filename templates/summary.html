@@ -146,13 +146,62 @@
 
 <div class="container" id="main-container">
     <h2>Learning Dashboard</h2>
+<div class="stats-container">
+    <div class="stat-card active" onclick="filterByStatus('all', this)">
+        <h4>Total Learner</h4>
+        <div class="number" style="color: var(--primary);">{{ total_users }}</div>
+        <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(รวมคนลงทะเบียนทั้งหมด)</p>
+    </div>
+    <div class="stat-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+        <h4>Net Revenue</h4>
+        <div class="number" style="color: #16a34a;">฿{{ "{:,.0f}".format(grand_total_revenue) }}</div>
+        <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(รายได้สุทธิ 20% Base + Bonus)</p>
+    </div>
+</div>
 
-    <div class="stats-container">
-        <div class="stat-card active" onclick="filterByStatus('all', this)">
-            <h4>Total Learner</h4>
-            <div class="number" style="color: var(--primary);">{{ total_users }}</div>
-            <p style="margin:0; font-size:10px; font-weight:300; opacity:0.6;">(รวมคนลงทะเบียนทั้งหมด)</p>
-        </div>
+<!-- Revenue Section -->
+<div class="section" id="revenue-section">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h3 style="margin:0;">Revenue Summary</h3>
+        <span style="font-size:12px; color:var(--text-secondary); background: #fdf2f2; padding: 4px 12px; border-radius: 12px;">Billing Priority: STEM > Learndi</span>
+    </div>
+    <div class="table-wrapper" style="overflow-x:auto;">
+        <table id="revenueDataTable" class="display compact" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Course Name</th>
+                    <th class="dt-center">Quota</th>
+                    <th class="dt-center">Billable STEM</th>
+                    <th class="dt-center">Billable Learndi</th>
+                    <th class="text-right">Base Rev (20%)</th>
+                    <th class="text-right">Bonus Rev</th>
+                    <th class="text-right" style="background: #f0fdf4;">Net Revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in revenue_data %}
+                <tr>
+                    <td><strong>{{ item.Course }}</strong></td>
+                    <td class="dt-center">{{ "{:,.0f}".format(item.Quota) }}</td>
+                    <td class="dt-center">{{ "{:,.0f}".format(item.Billable_STEM) }} <span style="font-size:10px; color:#aaa;">/ {{ "{:,.0f}".format(item.STEM_Done) }}</span></td>
+                    <td class="dt-center">{{ "{:,.0f}".format(item.Billable_Learndi) }} <span style="font-size:10px; color:#aaa;">/ {{ "{:,.0f}".format(item.Learndi_Done) }}</span></td>
+                    <td class="text-right">฿{{ "{:,.0f}".format(item.Base_Revenue) }}</td>
+                    <td class="text-right">฿{{ "{:,.0f}".format(item.Bonus_Revenue) }}</td>
+                    <td class="text-right" style="font-weight:700; color:#16a34a; background: #f0fdf4;">฿{{ "{:,.0f}".format(item.Total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700; background: #f0fdf4;">
+                    <td colspan="4" style="text-align:right;">GRAND TOTAL:</td>
+                    <td id="revSumBase" class="text-right"></td>
+                    <td id="revSumBonus" class="text-right"></td>
+                    <td id="revSumNet" class="text-right" style="font-size:16px;"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
         <div class="stat-card" onclick="filterByStatus('accessed', this)" style="border-left: 4px solid var(--success);">
             <h4>Active (Accessed)</h4>
             <div class="number" style="color: var(--success);">{{ joined_users_count }}</div>
@@ -936,6 +985,21 @@
                     }, 0);
                     var ids = ['#learndiSumTotal', '#learndiSumCompleted', '#learndiSumInProgress'];
                     $(ids[colIdx-1]).html(total.toLocaleString());
+                });
+            }
+        });
+
+        $('#revenueDataTable').DataTable({
+            paging: false, dom: 't', order: [[6, 'desc']],
+            footerCallback: function (row, data, start, end, display) {
+                var api = this.api();
+                [4, 5, 6].forEach(function(colIdx) {
+                    var total = api.column(colIdx).data().reduce(function(a, b){
+                        var clean = String(b).replace(/[฿,]/g, '').replace(/<[^>]*>/g, '');
+                        return a + (parseFloat(clean)||0);
+                    }, 0);
+                    var ids = ['#revSumBase', '#revSumBonus', '#revSumNet'];
+                    $(ids[colIdx-4]).html('฿' + total.toLocaleString());
                 });
             }
         });
